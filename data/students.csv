@@ -1,0 +1,6 @@
+student_id,name,email,college,created_at,opt_in_notifications
+0f7259ae-1de2-4074-a054-6686e1fff1c0,Alex Johnson,alex.johnson@university.edu,State University,2025-11-30T04:45:32.181Z,Y
+e51508e3-0b39-449d-8b39-ea01dc4f3e74,Maria Garcia,maria.garcia@university.edu,Tech Institute,2025-11-30T04:45:32.181Z,Y
+d6b1fc85-5e78-47c0-b0bb-cb3c786a1e16,David Kim,david.kim@university.edu,Engineering College,2025-11-30T04:45:32.181Z,N
+e8a05827-d402-4f71-a1e8-7bd3ad03cc87,Lisa Wang,lisa.wang@university.edu,State University,2025-11-30T04:45:32.181Z,Y
+bde34fec-fc2b-4c0e-b9ed-61d075135bb5,James Wilson,james.wilson@university.edu,Tech Institute,2025-11-30T04:45:32.181Z,Y

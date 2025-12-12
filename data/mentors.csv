@@ -1,0 +1,6 @@
+mentor_id,name,email,timezone,display_name,created_at,notes,calendar_id
+41ef1c67-2778-4f34-b5c4-68f8f3e230c9,Dr. Sarah Chen,sarah.chen@example.com,America/New_York,Sarah,2025-11-30T04:45:32.181Z,Expert in software engineering interviews,
+5cdb0f8c-445c-4f0d-988d-190f005ff377,John Martinez,john.martinez@example.com,America/Los_Angeles,John,2025-11-30T04:45:32.181Z,Specializes in system design,
+5b2b8a83-def4-463b-81f4-e2676424b950,Priya Sharma,priya.sharma@example.com,Asia/Kolkata,Priya,2025-11-30T04:45:32.181Z,Data structures and algorithms expert,
+5a7dd8af-1130-44e8-957e-bc2c78b04c9e,Michael Brown,michael.brown@example.com,Europe/London,Mike,2025-11-30T04:45:32.181Z,Full-stack development interviews,
+d9d5694b-08a0-47cc-9cef-385d908da0a0,Emily Davis,emily.davis@example.com,America/New_York,Emily,2025-11-30T04:45:32.181Z,Product management and behavioral interviews,

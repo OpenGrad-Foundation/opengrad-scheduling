@@ -1,0 +1,52 @@
+[
+  {
+    "mentor_id": "41ef1c67-2778-4f34-b5c4-68f8f3e230c9",
+    "name": "Dr. Sarah Chen",
+    "email": "sarah.chen@example.com",
+    "timezone": "America/New_York",
+    "display_name": "Sarah",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "notes": "Expert in software engineering interviews",
+    "calendar_id": ""
+  },
+  {
+    "mentor_id": "5cdb0f8c-445c-4f0d-988d-190f005ff377",
+    "name": "John Martinez",
+    "email": "john.martinez@example.com",
+    "timezone": "America/Los_Angeles",
+    "display_name": "John",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "notes": "Specializes in system design",
+    "calendar_id": ""
+  },
+  {
+    "mentor_id": "5b2b8a83-def4-463b-81f4-e2676424b950",
+    "name": "Priya Sharma",
+    "email": "priya.sharma@example.com",
+    "timezone": "Asia/Kolkata",
+    "display_name": "Priya",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "notes": "Data structures and algorithms expert",
+    "calendar_id": ""
+  },
+  {
+    "mentor_id": "5a7dd8af-1130-44e8-957e-bc2c78b04c9e",
+    "name": "Michael Brown",
+    "email": "michael.brown@example.com",
+    "timezone": "Europe/London",
+    "display_name": "Mike",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "notes": "Full-stack development interviews",
+    "calendar_id": ""
+  },
+  {
+    "mentor_id": "d9d5694b-08a0-47cc-9cef-385d908da0a0",
+    "name": "Emily Davis",
+    "email": "emily.davis@example.com",
+    "timezone": "America/New_York",
+    "display_name": "Emily",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "notes": "Product management and behavioral interviews",
+    "calendar_id": ""
+  }
+]
