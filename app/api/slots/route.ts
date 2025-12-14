@@ -4,9 +4,9 @@ import { getOpenSlots, createSlot } from '@/lib/apps-script';
 import type { SlotCreationRequest } from '@/types';
 
 // GET /api/slots - Get open slots
-export async function GET(request: NextRequest) {
+export const GET = auth(async (request) => {
   try {
-    const session = await auth(request as any);
+    const session = request.auth;
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -40,13 +40,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/slots - Create a new slot (mentor only)
-export async function POST(request: NextRequest) {
+export const POST = auth(async (request) => {
   try {
     // Validate session
-    const session = await auth(request as any);
+    const session = request.auth;
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -174,5 +174,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 

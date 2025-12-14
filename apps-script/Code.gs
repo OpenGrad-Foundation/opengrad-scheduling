@@ -76,6 +76,9 @@ function doPost(e) {
           parameters.studentEmail
         );
         break;
+      case 'getMentorByEmail':
+        result = getMentorByEmail(parameters.email);
+        break;
       case 'getMentorSlots':
         result = getMentorSlots(parameters.mentorId);
         break;
@@ -90,6 +93,21 @@ function doPost(e) {
         break;
       case 'submitFeedback':
         result = submitFeedback(parameters);
+        break;
+      case 'getAllMentors':
+        result = getAllMentors();
+        break;
+      case 'getAllStudents':
+        result = getAllStudents();
+        break;
+      case 'getAllBookings':
+        result = getAllBookings();
+        break;
+      case 'getAllSlots':
+        result = getAllSlots();
+        break;
+      case 'getAdminStats':
+        result = getAdminStats();
         break;
       default:
         return ContentService.createTextOutput(
@@ -126,20 +144,33 @@ function getOpenSlots() {
     const openSlots = rows
       .filter((row) => {
         const status = row[SLOT_COLS.STATUS];
-        const slotDate = new Date(row[SLOT_COLS.DATE]);
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
         slotDate.setHours(0, 0, 0, 0);
         return status === 'OPEN' && slotDate >= today;
       })
-      .map((row) => ({
-        slot_id: row[SLOT_COLS.SLOT_ID],
-        mentor_id: row[SLOT_COLS.MENTOR_ID],
-        mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
-        date: row[SLOT_COLS.DATE],
-        start_time: row[SLOT_COLS.START_TIME],
-        end_time: row[SLOT_COLS.END_TIME],
-        status: row[SLOT_COLS.STATUS],
-        meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
-      }));
+      .map((row) => {
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
+        return {
+          slot_id: row[SLOT_COLS.SLOT_ID],
+          mentor_id: row[SLOT_COLS.MENTOR_ID],
+          mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
+          date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+          start_time: Utilities.formatDate(new Date(row[SLOT_COLS.START_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+          end_time: Utilities.formatDate(new Date(row[SLOT_COLS.END_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+          status: row[SLOT_COLS.STATUS],
+          meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
+        };
+      });
 
     return { success: true, data: openSlots };
   } catch (error) {
@@ -227,7 +258,13 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
     }
 
     // Create date-time objects for calendar
-    const slotDate = new Date(slotData[SLOT_COLS.DATE]);
+    let slotDate = slotData[SLOT_COLS.DATE];
+    if (typeof slotDate === 'string') {
+      slotDate = new Date(slotDate);
+    } else if (typeof slotDate === 'number') {
+      slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+    }
+    // If it's already a Date object, use it as is
     const startTimeStr = slotData[SLOT_COLS.START_TIME];
     const endTimeStr = slotData[SLOT_COLS.END_TIME];
     
@@ -238,46 +275,47 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
     let calendarEventId = '';
     let meetLink = '';
 
-    // Create calendar event with Google Meet
+    // Create calendar event with Google Meet using Calendar API v3
     try {
-      const calendar = CalendarApp.getDefaultCalendar();
+      const calendarId = 'primary'; // Use 'primary' for your main calendar
       const eventTitle = `Interview: ${studentName} with ${mentorName}`;
       
-      const event = calendar.createEvent(
-        eventTitle,
-        startTime,
-        endTime,
-        {
-          guests: `${studentEmail}, ${mentorEmail}`,
-          sendInvites: true,
-        }
-      );
-
-      // Add Google Meet conference
-      try {
-        event.addConference(CalendarApp.ConferenceType.HANGOUT);
-      } catch (e) {
-        console.log('Could not add Meet conference:', e);
-      }
-
-      calendarEventId = event.getId();
-      
-      // Get Meet link
-      try {
-        const conferenceData = event.getConferenceData();
-        if (conferenceData) {
-          const entryPoints = conferenceData.getEntryPoints();
-          if (entryPoints && entryPoints.length > 0) {
-            meetLink = entryPoints[0].getUri();
+      const eventDetails = {
+        summary: eventTitle,
+        start: {
+          dateTime: startTime.toISOString(),
+        },
+        end: {
+          dateTime: endTime.toISOString(),
+        },
+        attendees: [
+          { email: studentEmail },
+          { email: mentorEmail }
+        ],
+        // The key part to add the Meet link
+        conferenceData: {
+          createRequest: {
+            requestId: "meet-request-" + Utilities.getUuid(), // Use a unique ID
+            conferenceSolutionKey: {
+              type: "hangoutsMeet"
+            }
           }
-        }
-        if (!meetLink) {
-          meetLink = event.getHtmlLink();
-        }
-      } catch (e) {
-        console.log('Could not get Meet link:', e);
-        meetLink = event.getHtmlLink() || '';
-      }
+        },
+        description: `Interview scheduled between ${studentName} and ${mentorName}`
+      };
+
+      // Insert the event using Calendar API v3
+      const newEvent = Calendar.Events.insert(eventDetails, calendarId, {
+        conferenceDataVersion: 1,
+        sendUpdates: 'all' // Send invites to attendees
+      });
+
+      calendarEventId = newEvent.id;
+      
+      // Get the generated Google Meet link from the created event
+      meetLink = newEvent.hangoutLink || '';
+      
+      Logger.log('Event created with Meet link: %s', meetLink);
     } catch (calendarError) {
       console.error('Calendar creation error:', calendarError);
       // Continue with booking even if calendar creation fails
@@ -319,6 +357,7 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
         meetLink: meetLink || '',
         studentName,
         mentorName,
+        date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
       });
     } catch (emailError) {
       console.error('Email error:', emailError);
@@ -400,23 +439,31 @@ function getMentorSlots(mentorId) {
 
     const mentorSlots = rows
       .filter((row) => row[SLOT_COLS.MENTOR_ID] === mentorId)
-      .map((row) => ({
-        slot_id: row[SLOT_COLS.SLOT_ID],
-        mentor_id: row[SLOT_COLS.MENTOR_ID],
-        mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
-        date: row[SLOT_COLS.DATE],
-        start_time: row[SLOT_COLS.START_TIME],
-        end_time: row[SLOT_COLS.END_TIME],
-        status: row[SLOT_COLS.STATUS],
-        booked_by: row[SLOT_COLS.BOOKED_BY] || '',
-        student_id: row[SLOT_COLS.STUDENT_ID] || '',
-        student_email: row[SLOT_COLS.STUDENT_EMAIL] || '',
-        meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
-        feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
-        feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
-        timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED] || '',
-        timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
-      }));
+      .map((row) => {
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
+        return {
+          slot_id: row[SLOT_COLS.SLOT_ID],
+          mentor_id: row[SLOT_COLS.MENTOR_ID],
+          mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
+          date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+          start_time: Utilities.formatDate(new Date(row[SLOT_COLS.START_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+          end_time: Utilities.formatDate(new Date(row[SLOT_COLS.END_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+          status: row[SLOT_COLS.STATUS],
+          booked_by: row[SLOT_COLS.BOOKED_BY] || '',
+          student_id: row[SLOT_COLS.STUDENT_ID] || '',
+          student_email: row[SLOT_COLS.STUDENT_EMAIL] || '',
+          meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
+          feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
+          feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
+          timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED] || '',
+          timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
+        };
+      });
 
     return { success: true, data: mentorSlots };
   } catch (error) {
@@ -477,7 +524,7 @@ function createSlot(parameters) {
       slotId,                                    // Slot_ID
       mentorId,                                  // Mentor_ID (or Mentor_Email)
       parameters.mentorName,                     // Mentor_Name
-      parameters.date,                           // Date
+      new Date(parameters.date + 'T00:00:00'),   // Date
       parameters.start,                          // Start_Time
       parameters.end,                            // End_Time
       'OPEN',                                    // Status
@@ -559,9 +606,9 @@ function getStudentBookings(studentId) {
         slot_id: row[SLOT_COLS.SLOT_ID],
         mentor_id: row[SLOT_COLS.MENTOR_ID],
         mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
-        date: row[SLOT_COLS.DATE],
-        start_time: row[SLOT_COLS.START_TIME],
-        end_time: row[SLOT_COLS.END_TIME],
+        date: Utilities.formatDate(new Date(row[SLOT_COLS.DATE]), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+        start_time: Utilities.formatDate(new Date(row[SLOT_COLS.START_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+        end_time: Utilities.formatDate(new Date(row[SLOT_COLS.END_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
         student_id: row[SLOT_COLS.STUDENT_ID],
         student_email: row[SLOT_COLS.STUDENT_EMAIL],
         meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
@@ -582,8 +629,8 @@ function getStudentBookings(studentId) {
 function sendBookingConfirmation(studentEmail, mentorEmail, bookingData) {
   const subject = 'Interview Session Confirmed - OpenGrad';
   
-  // Format dates
-  const dateStr = Utilities.formatDate(bookingData.startTime, Session.getScriptTimeZone(), 'EEEE, MMMM d, yyyy');
+  // Format dates - extract date components to avoid timezone issues
+  const dateStr = Utilities.formatDate(new Date(bookingData.date + 'T00:00:00'), Session.getScriptTimeZone(), 'EEEE, MMMM d, yyyy');
   const startTimeStr = Utilities.formatDate(bookingData.startTime, Session.getScriptTimeZone(), 'h:mm a');
   const endTimeStr = Utilities.formatDate(bookingData.endTime, Session.getScriptTimeZone(), 'h:mm a');
   
@@ -685,13 +732,21 @@ OpenGrad Scheduling System
  * Generate ICS calendar file content
  */
 function generateICSFile(bookingData, studentEmail, mentorEmail) {
+  const tz = Session.getScriptTimeZone();
   const formatICSDate = (date) => {
-    return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyyMMdd'T'HHmmss'Z'");
+    return Utilities.formatDate(date, tz, "yyyyMMdd'T'HHmmss");
   };
   
-  const startDate = formatICSDate(bookingData.startTime);
-  const endDate = formatICSDate(bookingData.endTime);
-  const now = formatICSDate(new Date());
+  // Construct start and end times using the date from bookingData
+  const eventDate = new Date(bookingData.date + 'T00:00:00');
+  const startTime = new Date(eventDate);
+  startTime.setHours(bookingData.startTime.getHours(), bookingData.startTime.getMinutes(), 0, 0);
+  const endTime = new Date(eventDate);
+  endTime.setHours(bookingData.endTime.getHours(), bookingData.endTime.getMinutes(), 0, 0);
+  
+  const startDate = formatICSDate(startTime);
+  const endDate = formatICSDate(endTime);
+  const now = Utilities.formatDate(new Date(), 'UTC', "yyyyMMdd'T'HHmmss'Z'");
   const uid = bookingData.bookingId + '@opengrad-scheduling';
   
   const description = `Interview session between ${bookingData.studentName} and ${bookingData.mentorName}.\n\n${bookingData.meetLink ? `Google Meet Link: ${bookingData.meetLink}` : ''}`;
@@ -702,9 +757,12 @@ VERSION:2.0
 PRODID:-//OpenGrad Scheduling//EN
 CALSCALE:GREGORIAN
 METHOD:REQUEST
+BEGIN:VTIMEZONE
+TZID:${tz}
+END:VTIMEZONE
 BEGIN:VEVENT
-DTSTART:${startDate}
-DTEND:${endDate}
+DTSTART;TZID=${tz}:${startDate}
+DTEND;TZID=${tz}:${endDate}
 DTSTAMP:${now}
 ORGANIZER;CN=${bookingData.mentorName}:mailto:${mentorEmail}
 UID:${uid}
@@ -730,6 +788,36 @@ END:VCALENDAR`;
  * Submit feedback after interview
  * Expected parameters: { slotId, feedbackType: 'mentor' | 'student', feedbackData: {...} }
  */
+function getMentorByEmail(email) {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_MENTORS);
+    if (!sheet) {
+      return { success: false, error: 'Mentors sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const rows = data.slice(1); // Skip header
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (row[MENTOR_COLS.MENTOR_EMAIL] === email) {
+        return {
+          success: true,
+          mentor: {
+            mentor_id: row[MENTOR_COLS.MENTOR_ID],
+            name: row[MENTOR_COLS.MENTOR_NAME],
+            email: row[MENTOR_COLS.MENTOR_EMAIL],
+          },
+        };
+      }
+    }
+
+    return { success: false, error: 'Mentor not found' };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
 function submitFeedback(parameters) {
   try {
     const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
@@ -790,6 +878,211 @@ function submitFeedback(parameters) {
         submitted_at: new Date().toISOString(),
       },
     };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all bookings (BOOKED slots) for admin dashboard
+ */
+function getAllBookings() {
+  try {
+    const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!slotsSheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = slotsSheet.getDataRange().getValues();
+    const bookings = [];
+
+    // Skip header row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const status = row[SLOT_COLS.STATUS];
+
+      // Only include BOOKED slots as bookings
+      if (status === 'BOOKED') {
+        const booking = {
+          booking_id: row[SLOT_COLS.SLOT_ID], // Use slot_id as booking_id
+          slot_id: row[SLOT_COLS.SLOT_ID],
+          mentor_id: row[SLOT_COLS.MENTOR_ID],
+          mentor_name: row[SLOT_COLS.MENTOR_NAME],
+          student_id: row[SLOT_COLS.STUDENT_ID],
+          student_email: row[SLOT_COLS.STUDENT_EMAIL],
+          date: row[SLOT_COLS.DATE],
+          start_time: row[SLOT_COLS.START_TIME],
+          end_time: row[SLOT_COLS.END_TIME],
+          meet_link: row[SLOT_COLS.MEETING_LINK],
+          status: 'confirmed', // All BOOKED slots are confirmed bookings
+          feedback_sent: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] === 'DONE' ? 'Y' : 'N',
+          feedback_submitted: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] === 'DONE' ? 'Y' : 'N',
+          created_at: row[SLOT_COLS.TIMESTAMP_BOOKED] || row[SLOT_COLS.TIMESTAMP_CREATED],
+          timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED],
+          timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
+        };
+        bookings.push(booking);
+      }
+    }
+
+    return {
+      success: true,
+      data: bookings,
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all slots for admin dashboard
+ */
+function getAllSlots() {
+  try {
+    const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!slotsSheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = slotsSheet.getDataRange().getValues();
+    const slots = [];
+
+    // Skip header row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      let slotDate = row[SLOT_COLS.DATE];
+      if (typeof slotDate === 'string') {
+        slotDate = new Date(slotDate);
+      } else if (typeof slotDate === 'number') {
+        slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+      }
+      const slot = {
+        slot_id: row[SLOT_COLS.SLOT_ID],
+        mentor_id: row[SLOT_COLS.MENTOR_ID],
+        mentor_name: row[SLOT_COLS.MENTOR_NAME],
+        date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+        start_time: Utilities.formatDate(new Date(row[SLOT_COLS.START_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+        end_time: Utilities.formatDate(new Date(row[SLOT_COLS.END_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+        status: row[SLOT_COLS.STATUS],
+        booked_by: row[SLOT_COLS.BOOKED_BY],
+        student_id: row[SLOT_COLS.STUDENT_ID],
+        student_email: row[SLOT_COLS.STUDENT_EMAIL],
+        meeting_link: row[SLOT_COLS.MEETING_LINK],
+        feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR],
+        feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT],
+        timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED],
+        timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
+      };
+      slots.push(slot);
+    }
+
+    return {
+      success: true,
+      data: slots,
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get admin statistics for dashboard
+ */
+function getAdminStats() {
+  try {
+    const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!slotsSheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = slotsSheet.getDataRange().getValues();
+    let totalBookings = 0;
+    let completed = 0;
+    let noShows = 0;
+    let feedbackSubmitted = 0;
+
+    // Skip header row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const status = row[SLOT_COLS.STATUS];
+      const feedbackMentor = row[SLOT_COLS.FEEDBACK_STATUS_MENTOR];
+      const feedbackStudent = row[SLOT_COLS.FEEDBACK_STATUS_STUDENT];
+
+      if (status === 'BOOKED') {
+        totalBookings++;
+        // Consider completed if both feedback statuses are DONE
+        if (feedbackMentor === 'DONE' && feedbackStudent === 'DONE') {
+          completed++;
+        }
+        // For now, no logic for no-shows as we don't track attendance
+        // Count feedback submitted if either mentor or student has submitted
+        if (feedbackMentor === 'DONE' || feedbackStudent === 'DONE') {
+          feedbackSubmitted++;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        totalBookings,
+        completed,
+        noShows,
+        feedbackSubmitted,
+      },
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all mentors
+ */
+function getAllMentors() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_MENTORS);
+    if (!sheet) {
+      return { success: false, error: 'Mentors sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const mentors = rows.map((row) => ({
+      mentor_id: row[MENTOR_COLS.MENTOR_ID],
+      name: row[MENTOR_COLS.MENTOR_NAME],
+      email: row[MENTOR_COLS.MENTOR_EMAIL],
+    }));
+
+    return { success: true, data: mentors };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all students
+ */
+function getAllStudents() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_STUDENTS);
+    if (!sheet) {
+      return { success: false, error: 'Students sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const students = rows.map((row) => ({
+      student_id: row[STUDENT_COLS.STUDENT_ID],
+      name: row[STUDENT_COLS.STUDENT_NAME],
+      email: row[STUDENT_COLS.STUDENT_EMAIL],
+    }));
+
+    return { success: true, data: students };
   } catch (error) {
     return { success: false, error: error.toString() };
   }

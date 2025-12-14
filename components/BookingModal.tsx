@@ -17,8 +17,9 @@ export default function BookingModal({
   mentorName,
   onClose,
 }: BookingModalProps) {
-  const startTime = new Date(slot.start_time);
-  const endTime = new Date(slot.end_time);
+  // Combine date and time strings to create proper Date objects
+  const startTime = new Date(`${slot.date} ${slot.start_time}`);
+  const endTime = new Date(`${slot.date} ${slot.end_time}`);
 
   const addToCalendar = () => {
     // Create Google Calendar link

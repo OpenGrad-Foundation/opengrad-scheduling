@@ -4,6 +4,7 @@ import type { Slot, Booking, SlotCreationRequest } from '@/types';
 const APPS_SCRIPT_URL = process.env.NEXT_PUBLIC_APPS_SCRIPT_URL || '';
 
 export interface AppsScriptResponse<T = any> {
+  mentor?: any;
   success: boolean;
   data?: T;
   error?: string;
@@ -118,5 +119,62 @@ export async function getStudentBookings(
   studentId: string
 ): Promise<AppsScriptResponse<Booking[]>> {
   return callAppsScript('getStudentBookings', { studentId });
+}
+
+/**
+ * Get mentor info by email
+ */
+export async function getMentorByEmail(
+  email: string
+): Promise<AppsScriptResponse<{ mentor_id: string; name: string; email: string }>> {
+  return callAppsScript('getMentorByEmail', { email });
+}
+
+/**
+ * Get all bookings for admin dashboard
+ */
+export async function getAllBookings(): Promise<AppsScriptResponse<Booking[]>> {
+  return callAppsScript('getAllBookings');
+}
+
+/**
+ * Get all slots for admin dashboard
+ */
+export async function getAllSlots(): Promise<AppsScriptResponse<Slot[]>> {
+  return callAppsScript('getAllSlots');
+}
+
+/**
+ * Get admin statistics
+ */
+export async function getAdminStats(): Promise<AppsScriptResponse<{
+  totalBookings: number;
+  completed: number;
+  noShows: number;
+  feedbackSubmitted: number;
+}>> {
+  return callAppsScript('getAdminStats');
+}
+
+/**
+ * Get all mentors
+ */
+export async function getAllMentors(): Promise<AppsScriptResponse<{
+  mentor_id: string;
+  name: string;
+  email: string;
+}[]>> {
+  return callAppsScript('getAllMentors');
+}
+
+/**
+ * Get all students
+ */
+export async function getAllStudents(): Promise<AppsScriptResponse<{
+  student_id: string;
+  name: string;
+  email: string;
+}[]>> {
+  return callAppsScript('getAllStudents');
 }
 

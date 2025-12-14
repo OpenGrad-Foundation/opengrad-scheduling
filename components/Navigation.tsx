@@ -1,11 +1,60 @@
 'use client';
 
 import Link from 'next/link';
-import { useSession, signOut } from 'next-auth/react';
-import { Calendar, Users, Shield, LogOut, Home } from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, Users, Shield, LogOut, Menu, X } from 'lucide-react';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function Navigation() {
-  const { data: session } = useSession();
+  const { userRole, isAuthenticated, isAdmin, displayName, signOut, isLoading } = useAuth({ disableRedirects: true });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const renderRoleBasedNav = (isMobile = false) => {
+    const containerClass = isMobile ? "flex flex-col gap-4" : "flex items-center gap-6";
+    const linkClass = "flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors";
+
+    if (isAdmin) {
+      return (
+        <div className={containerClass}>
+          <Link href="/admin/dashboard" className={linkClass}>
+            <Shield className="h-4 w-4" />
+            Dashboard
+          </Link>
+          <Link href="/admin/mentors" className={linkClass}>
+            <Users className="h-4 w-4" />
+            Mentors
+          </Link>
+          <Link href="/admin/students" className={linkClass}>
+            <Users className="h-4 w-4" />
+            Students
+          </Link>
+          <Link href="/admin/slots" className={linkClass}>
+            <Calendar className="h-4 w-4" />
+            Slots
+          </Link>
+        </div>
+      );
+    }
+
+    switch (userRole) {
+      case 'student':
+        return (
+          <Link href="/student" className={linkClass}>
+            <Users className="h-4 w-4" />
+            Book Session
+          </Link>
+        );
+      case 'mentor':
+        return (
+          <Link href="/mentor" className={linkClass}>
+            <Calendar className="h-4 w-4" />
+            Mentor Dashboard
+          </Link>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
@@ -16,38 +65,20 @@ export default function Navigation() {
               <Calendar className="h-6 w-6" />
               OpenGrad
             </Link>
-            {session && (
-              <div className="flex items-center gap-4">
-                <Link
-                  href="/student"
-                  className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
-                >
-                  <Users className="h-4 w-4" />
-                  Book Session
-                </Link>
-                <Link
-                  href="/mentor"
-                  className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Mentor
-                </Link>
-                <Link
-                  href="/admin"
-                  className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
-                >
-                  <Shield className="h-4 w-4" />
-                  Admin
-                </Link>
-              </div>
-            )}
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-6">
+              {isAuthenticated && renderRoleBasedNav(false)}
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            {session ? (
+          {/* Desktop User Actions */}
+          <div className="hidden md:flex items-center gap-4">
+            {isLoading ? (
+              <span className="text-sm text-gray-400">Loading...</span>
+            ) : isAuthenticated ? (
               <>
-                <span className="text-sm text-gray-600">{session.user?.name || session.user?.email}</span>
+                <span className="text-sm text-gray-600">{displayName}</span>
                 <button
-                  onClick={() => signOut()}
+                  onClick={signOut}
                   className="flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors"
                 >
                   <LogOut className="h-4 w-4" />
@@ -63,9 +94,48 @@ export default function Navigation() {
               </Link>
             )}
           </div>
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="text-gray-700 hover:text-blue-600 transition-colors"
+            >
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
         </div>
+        {/* Mobile Navigation Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-200 py-4">
+            <div className="flex flex-col gap-4">
+              {isAuthenticated && renderRoleBasedNav(true)}
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                {isLoading ? (
+                  <span className="text-sm text-gray-400">Loading...</span>
+                ) : isAuthenticated ? (
+                  <div className="flex flex-col gap-4">
+                    <span className="text-sm text-gray-600">{displayName}</span>
+                    <button
+                      onClick={signOut}
+                      className="flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                ) : (
+                  <Link
+                    href="/auth/signin"
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors inline-block"
+                  >
+                    Sign In
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );
 }
-

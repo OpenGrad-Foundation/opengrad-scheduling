@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { getMentorByEmail } from '@/lib/apps-script';
 
 // Validate required environment variables
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -97,11 +98,25 @@ export const authOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }: any) {
-      // If using Google OAuth, assign mentor role
+      // If using Google OAuth, check if user is a mentor
       if (account?.provider === 'google') {
-        user.role = 'mentor';
-        // Store OAuth account info for later use
-        (user as any).account = account;
+        try {
+          const mentorResponse = await getMentorByEmail(user.email);
+          if (mentorResponse.success && mentorResponse.mentor) {
+            user.role = 'mentor';
+            // Store OAuth account info for later use
+            (user as any).account = account;
+            return true;
+          } else {
+            // Not a mentor, deny sign in
+            console.warn(`Google user ${user.email} attempted to sign in but is not a registered mentor`);
+            return false;
+          }
+        } catch (error) {
+          console.error('Error checking mentor status:', error);
+          // On error, deny sign in to be safe
+          return false;
+        }
       }
       // If using credentials, role is already set to 'student'
       return true;

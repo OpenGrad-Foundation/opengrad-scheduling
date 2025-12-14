@@ -3,9 +3,9 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { bookSlot, getStudentBookings } from '@/lib/apps-script';
 
 // POST /api/bookings - Book a slot
-export async function POST(request: NextRequest) {
+export const POST = auth(async (request) => {
   try {
-    const session = await auth(request as any);
+    const session = request.auth;
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -51,12 +51,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // GET /api/bookings - Get user's bookings
-export async function GET(request: NextRequest) {
+export const GET = auth(async (request) => {
   try {
-    const session = await auth(request as any);
+    const session = request.auth;
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -87,5 +87,5 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 

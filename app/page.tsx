@@ -1,31 +1,26 @@
 'use client';
 
-import Link from 'next/link';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Calendar, Users, BookOpen, Shield } from 'lucide-react';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function Home() {
-  const { data: session, status } = useSession();
   const router = useRouter();
+  const { isLoading, isAdmin } = useAuth({ redirectToRoleDashboard: true });
 
-  // Redirect authenticated users to their dashboard
+  // Redirect admin to dashboard
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.role) {
-      const role = session.user.role;
-      if (role === 'mentor') {
-        router.replace('/mentor');
-      } else if (role === 'student') {
-        router.replace('/student');
-      }
+    if (!isLoading && isAdmin) {
+      router.replace('/admin/dashboard');
     }
-  }, [status, session, router]);
+  }, [isLoading, isAdmin, router]);
 
   // Show loading state while checking authentication
-  if (status === 'loading') {
+  if (isLoading || isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
@@ -35,7 +30,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
