@@ -1,0 +1,42 @@
+[
+  {
+    "student_id": "0f7259ae-1de2-4074-a054-6686e1fff1c0",
+    "name": "Alex Johnson",
+    "email": "alex.johnson@university.edu",
+    "college": "State University",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "opt_in_notifications": "Y"
+  },
+  {
+    "student_id": "e51508e3-0b39-449d-8b39-ea01dc4f3e74",
+    "name": "Maria Garcia",
+    "email": "maria.garcia@university.edu",
+    "college": "Tech Institute",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "opt_in_notifications": "Y"
+  },
+  {
+    "student_id": "d6b1fc85-5e78-47c0-b0bb-cb3c786a1e16",
+    "name": "David Kim",
+    "email": "david.kim@university.edu",
+    "college": "Engineering College",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "opt_in_notifications": "N"
+  },
+  {
+    "student_id": "e8a05827-d402-4f71-a1e8-7bd3ad03cc87",
+    "name": "Lisa Wang",
+    "email": "lisa.wang@university.edu",
+    "college": "State University",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "opt_in_notifications": "Y"
+  },
+  {
+    "student_id": "bde34fec-fc2b-4c0e-b9ed-61d075135bb5",
+    "name": "James Wilson",
+    "email": "james.wilson@university.edu",
+    "college": "Tech Institute",
+    "created_at": "2025-11-30T04:45:32.181Z",
+    "opt_in_notifications": "Y"
+  }
+]
