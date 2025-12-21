@@ -10,7 +10,7 @@
  */
 
 // Configuration - Update these with your Sheet IDs
-const SHEET_ID = '15of0yJZQ3GFfiSLghIoCjYFfD-na-CoLt1VyLEWEaBM'; // Replace with your Google Sheet ID
+const SHEET_ID = '1Q2wtN06zk3LbY8lZ9YahpVpe8Y_xGFUo7fuewuai_Ik'; // Replace with your Google Sheet ID
 const SPREADSHEET = SpreadsheetApp.openById(SHEET_ID);
 
 // Sheet names
@@ -53,6 +53,80 @@ const MENTOR_COLS = {
   MENTOR_NAME: 1,          // B
   MENTOR_EMAIL: 2         // C
 };
+
+/**
+ * FORM SUBMISSION HANDLER - Handles both Mentor and Student feedback
+ * Use "From spreadsheet" -> "On form submit" trigger for this function
+ */
+function onFormSubmit(e) {
+  try {
+    const sheetName = e.range.getSheet().getName();
+    const namedValues = e.namedValues;
+    
+    // Find Slot ID in the submitted values
+    let slotId = null;
+    const keys = Object.keys(namedValues);
+    
+    for (const key of keys) {
+      const val = namedValues[key] ? namedValues[key][0] : "";
+      const cleanKey = key.toLowerCase().trim();
+      
+      // Check if key is exactly "slot id" or contains "slot"
+      if (cleanKey === 'slot id' || cleanKey.includes('slot')) {
+        if (val && val.toString().trim() !== "") {
+          slotId = val.toString().trim();
+          break;
+        }
+      }
+      
+      // Fallback: check if the value itself looks like "SLOT001"
+      if (val && /^SLOT\d+$/i.test(val.toString().trim())) {
+        slotId = val.toString().trim();
+        break;
+      }
+    }
+    
+    if (!slotId) {
+      Logger.log('ERROR: Slot ID value is EMPTY. Make sure the "Slot ID" field in the form is filled. Available keys: ' + keys.join(', '));
+      return;
+    }
+
+    if (sheetName.toLowerCase().includes('mentor')) {
+      updateFeedbackStatus(slotId, 'mentor');
+    } else if (sheetName.toLowerCase().includes('mentee') || sheetName.toLowerCase().includes('student')) {
+      updateFeedbackStatus(slotId, 'student');
+    }
+  } catch (error) {
+    Logger.log('Error in onFormSubmit: ' + error.toString());
+  }
+}
+
+function updateFeedbackStatus(slotId, feedbackType) {
+  try {
+    const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!slotsSheet) return;
+
+    const data = slotsSheet.getDataRange().getValues();
+    let slotRow = -1;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][SLOT_COLS.SLOT_ID] === slotId) {
+        slotRow = i + 1;
+        break;
+      }
+    }
+
+    if (slotRow !== -1) {
+      if (feedbackType === 'mentor') {
+        slotsSheet.getRange(slotRow, SLOT_COLS.FEEDBACK_STATUS_MENTOR + 1).setValue('DONE');
+      } else if (feedbackType === 'student') {
+        slotsSheet.getRange(slotRow, SLOT_COLS.FEEDBACK_STATUS_STUDENT + 1).setValue('DONE');
+      }
+    }
+  } catch (error) {
+    Logger.log('Error updating feedback status: ' + error.toString());
+  }
+}
 
 /**
  * Web app entry point - handles all API calls
@@ -121,6 +195,10 @@ function doPost(e) {
           break;
         case 'getAdminStats':
           result = getAdminStats();
+          break;
+        case 'processFeedbackQueue':
+          processFeedbackQueue();
+          result = { success: true, message: 'Feedback queue processed successfully' };
           break;
         default:
           return ContentService.createTextOutput(
@@ -197,13 +275,17 @@ function getOpenSlots() {
         } else if (typeof slotDate === 'number') {
           slotDate = new Date((slotDate - 25569) * 86400 * 1000);
         }
+        
+        const startTimeVal = row[SLOT_COLS.START_TIME];
+        const endTimeVal = row[SLOT_COLS.END_TIME];
+        
         return {
           slot_id: row[SLOT_COLS.SLOT_ID],
           mentor_id: row[SLOT_COLS.MENTOR_ID],
           mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
           date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-          start_time: Utilities.formatDate(new Date(row[SLOT_COLS.START_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
-          end_time: Utilities.formatDate(new Date(row[SLOT_COLS.END_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+          start_time: formatTimeValue(startTimeVal),
+          end_time: formatTimeValue(endTimeVal),
           status: row[SLOT_COLS.STATUS],
           meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
         };
@@ -325,6 +407,10 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
         end: {
           dateTime: endTime.toISOString(),
         },
+        organizer: {
+          email: mentorEmail,
+          displayName: mentorName
+        },
         attendees: [
           { email: studentEmail },
           { email: mentorEmail }
@@ -358,9 +444,7 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
           ? newEvent.conferenceData.entryPoints[0].uri
           : '';
       
-      Logger.log('Event created with Meet link: %s', meetLink);
     } catch (calendarError) {
-      console.error('Calendar creation error:', calendarError);
       // Continue with booking even if calendar creation fails
     }
 
@@ -400,10 +484,11 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
         meetLink: meetLink || '',
         studentName,
         mentorName,
+        studentEmail: studentEmail,
+        mentorEmail: mentorEmail,
         date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
       });
     } catch (emailError) {
-      console.error('Email error:', emailError);
       // Don't fail booking if email fails
     }
 
@@ -416,9 +501,9 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
         mentorName: mentorName,
         studentName: studentName,
         interviewEndTime: endTime,
+        slotId: slotId, // Add slot ID
       });
     } catch (jobError) {
-      Logger.log('Error enqueueing feedback job: ' + jobError.toString());
       // Don't fail booking if job enqueueing fails
     }
 
@@ -441,6 +526,33 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Format time value from Google Sheets (handles string and numeric formats)
+ */
+function formatTimeValue(timeValue) {
+  // Handle null, undefined, or empty values
+  if (timeValue === null || timeValue === undefined || timeValue === '') {
+    return '';
+  }
+  
+  if (typeof timeValue === 'string') {
+    // Already in HH:mm or H:mm format
+    return timeValue.trim();
+  } else if (typeof timeValue === 'number') {
+    // Google Sheets time as decimal (0 = 00:00, 0.5 = 12:00, etc.)
+    const hours = Math.floor(timeValue * 24);
+    const minutes = Math.floor((timeValue * 24 * 60) % 60);
+    return ('0' + hours).slice(-2) + ':' + ('0' + minutes).slice(-2);
+  } else if (typeof timeValue === 'object' && timeValue instanceof Date) {
+    // If it's already a Date object, format it
+    const hours = ('0' + timeValue.getHours()).slice(-2);
+    const minutes = ('0' + timeValue.getMinutes()).slice(-2);
+    return hours + ':' + minutes;
+  }
+  
+  return '';
 }
 
 /**
@@ -474,10 +586,27 @@ function parseDateTime(date, timeStr) {
       minutes = parseInt(parts[1]) || 0;
     }
   } else if (typeof timeStr === 'object' && timeStr instanceof Date) {
-    return timeStr;
+    // FIX: Extract time from the Date object (which is likely 1899-12-30 from Sheets)
+    // Do NOT return timeStr directly as it has the wrong date component
+    hours = timeStr.getHours();
+    minutes = timeStr.getMinutes();
+  } else if (typeof timeStr === 'number') {
+    // Handle decimal time from sheets (e.g. 0.75 = 18:00)
+    hours = Math.floor(timeStr * 24);
+    minutes = Math.floor((timeStr * 24 * 60) % 60);
   }
   
+  // Create new date object from the base date
   const result = new Date(date);
+  
+  // Validate result date
+  if (isNaN(result.getTime())) {
+    // Fallback to today if invalid
+    const today = new Date();
+    today.setHours(hours, minutes, 0, 0);
+    return today;
+  }
+  
   result.setHours(hours, minutes, 0, 0);
   return result;
 }
@@ -509,8 +638,8 @@ function getMentorSlots(mentorId) {
           mentor_id: row[SLOT_COLS.MENTOR_ID],
           mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
           date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-          start_time: Utilities.formatDate(new Date(row[SLOT_COLS.START_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
-          end_time: Utilities.formatDate(new Date(row[SLOT_COLS.END_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+          start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+          end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
           status: row[SLOT_COLS.STATUS],
           booked_by: row[SLOT_COLS.BOOKED_BY] || '',
           student_id: row[SLOT_COLS.STUDENT_ID] || '',
@@ -660,20 +789,28 @@ function getStudentBookings(studentId) {
 
     const bookings = rows
       .filter((row) => row[SLOT_COLS.STUDENT_ID] === studentId && row[SLOT_COLS.STATUS] === 'BOOKED')
-      .map((row) => ({
+      .map((row) => {
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
+        return ({
         slot_id: row[SLOT_COLS.SLOT_ID],
         mentor_id: row[SLOT_COLS.MENTOR_ID],
         mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
-        date: Utilities.formatDate(new Date(row[SLOT_COLS.DATE]), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-        start_time: Utilities.formatDate(new Date(row[SLOT_COLS.START_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
-        end_time: Utilities.formatDate(new Date(row[SLOT_COLS.END_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+        date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+        start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+        end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
         student_id: row[SLOT_COLS.STUDENT_ID],
         student_email: row[SLOT_COLS.STUDENT_EMAIL],
         meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
         feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
         feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
         timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
-      }));
+      });
+      });
 
     return { success: true, data: bookings };
   } catch (error) {
@@ -688,18 +825,33 @@ function getStudentBookings(studentId) {
  * @param {string} mentorName - Mentor name
  * @param {string} studentName - Student name
  * @param {string} meetLink - Google Meet link (optional)
+ * @param {string} studentEmail - Student email (optional)
+ * @param {string} mentorEmail - Mentor email (optional)
  * @return {string} .ics file content
  */
-function generateICSFile(startTime, endTime, mentorName, studentName, meetLink) {
+function generateICSFile(startTime, endTime, mentorName, studentName, meetLink, studentEmail, mentorEmail) {
+  // Validate inputs are Date objects
+  if (!(startTime instanceof Date) || isNaN(startTime.getTime())) {
+    startTime = new Date();
+  }
+  if (!(endTime instanceof Date) || isNaN(endTime.getTime())) {
+    endTime = new Date();
+  }
+  
   // Format date to UTC in RFC 5545 format: YYYYMMDDTHHMMSSZ
   function formatICSDate(date) {
+    // Additional validation to prevent the 1899 issue
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      date = new Date();
+    }
     const year = date.getUTCFullYear();
     const month = ('0' + (date.getUTCMonth() + 1)).slice(-2);
     const day = ('0' + date.getUTCDate()).slice(-2);
     const hours = ('0' + date.getUTCHours()).slice(-2);
     const minutes = ('0' + date.getUTCMinutes()).slice(-2);
     const seconds = ('0' + date.getUTCSeconds()).slice(-2);
-    return year + month + day + 'T' + hours + minutes + seconds + 'Z';
+    const formatted = year + month + day + 'T' + hours + minutes + seconds + 'Z';
+    return formatted;
   }
   
   // Escape special characters in text fields (RFC 5545)
@@ -709,7 +861,8 @@ function generateICSFile(startTime, endTime, mentorName, studentName, meetLink) 
       .replace(/\\/g, '\\\\')
       .replace(/;/g, '\\;')
       .replace(/,/g, '\\,')
-      .replace(/\n/g, '\\n');
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '');
   }
   
   const now = new Date();
@@ -719,19 +872,20 @@ function generateICSFile(startTime, endTime, mentorName, studentName, meetLink) 
   // Build description with Meet link
   let description = 'Interview session between ' + studentName + ' and ' + mentorName;
   if (meetLink) {
-    description += '\\n\\nGoogle Meet Link: ' + meetLink;
+    description += '\n\nGoogle Meet Link: ' + meetLink;
   }
   
   // Build location with Meet link if available
   const location = meetLink || 'Online';
   
-  // Generate .ics content (CRLF line endings required by RFC 5545)
-  const icsContent = [
+  // Build ICS content with ATTENDEE and ORGANIZER properties
+  const icsLines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//OpenGrad//Interview Scheduling//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:REQUEST',
+    'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
     'BEGIN:VEVENT',
     'UID:' + uid,
     'DTSTAMP:' + formatICSDate(now),
@@ -741,15 +895,33 @@ function generateICSFile(startTime, endTime, mentorName, studentName, meetLink) 
     'DESCRIPTION:' + escapeICSText(description),
     'LOCATION:' + escapeICSText(location),
     'STATUS:CONFIRMED',
-    'SEQUENCE:0',
-    'BEGIN:VALARM',
-    'TRIGGER:-PT15M',
-    'ACTION:DISPLAY',
-    'DESCRIPTION:Reminder: Interview session in 15 minutes',
-    'END:VALARM',
-    'END:VEVENT',
-    'END:VCALENDAR'
-  ].join('\r\n'); // CRLF line endings as per RFC 5545
+    'SEQUENCE:0'
+  ];
+  
+  // Add ORGANIZER property (use mentor as organizer)
+  if (mentorEmail) {
+    icsLines.push('ORGANIZER;CN=' + escapeICSText(mentorName) + ':mailto:' + mentorEmail);
+  }
+  
+  // Add ATTENDEE properties for both participants
+  if (studentEmail) {
+    icsLines.push('ATTENDEE;CN=' + escapeICSText(studentName) + ';RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:' + studentEmail);
+  }
+  if (mentorEmail) {
+    icsLines.push('ATTENDEE;CN=' + escapeICSText(mentorName) + ';RSVP=TRUE;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:' + mentorEmail);
+  }
+  
+  // Add VALARM (alarm/reminder)
+  icsLines.push('BEGIN:VALARM');
+  icsLines.push('TRIGGER:-PT15M');
+  icsLines.push('ACTION:DISPLAY');
+  icsLines.push('DESCRIPTION:Reminder: Interview session in 15 minutes');
+  icsLines.push('END:VALARM');
+  icsLines.push('END:VEVENT');
+  icsLines.push('END:VCALENDAR');
+  
+  // Generate .ics content (CRLF line endings required by RFC 5545)
+  const icsContent = icsLines.join('\r\n');
   
   return icsContent;
 }
@@ -803,23 +975,23 @@ function sendBookingConfirmation(studentEmail, mentorEmail, bookingData) {
   
   // Plain text version
   const plainBody = `
-Your interview session has been confirmed!
+  Your interview session has been confirmed!
 
-Date: ${dateStr}
-Time: ${startTimeStr} - ${endTimeStr}
-Student: ${bookingData.studentName}
-Mentor: ${bookingData.mentorName}
+  Date: ${dateStr}
+  Time: ${startTimeStr} - ${endTimeStr}
+  Student: ${bookingData.studentName}
+  Mentor: ${bookingData.mentorName}
 
-${bookingData.meetLink ? `Google Meet Link: ${bookingData.meetLink}` : ''}
+  ${bookingData.meetLink ? `Google Meet Link: ${bookingData.meetLink}` : ''}
 
-A calendar invite with Google Meet link has been sent to your email by Google Calendar.
-Please check your calendar and accept the invite.
+  A calendar invite with Google Meet link has been sent to your email by Google Calendar.
+  Please check your calendar and accept the invite.
 
-Please make sure to attend on time. You will receive a feedback form after the session.
+  Please make sure to attend on time. You will receive a feedback form after the session.
 
-Best regards,
-OpenGrad Scheduling System
-  `;
+  Best regards,
+  OpenGrad Scheduling System
+    `;
   
   // Generate .ics calendar file
   let icsBlob = null;
@@ -829,12 +1001,12 @@ OpenGrad Scheduling System
       bookingData.endTime,
       bookingData.mentorName,
       bookingData.studentName,
-      bookingData.meetLink || ''
+      bookingData.meetLink || '',
+      bookingData.studentEmail || '',
+      bookingData.mentorEmail || ''
     );
     icsBlob = Utilities.newBlob(icsContent, 'text/calendar', 'interview-session.ics');
-    Logger.log('Generated .ics file for booking confirmation');
   } catch (icsError) {
-    Logger.log('Error generating .ics file: ' + icsError.toString());
     // Continue without attachment if generation fails
   }
   
@@ -848,13 +1020,13 @@ OpenGrad Scheduling System
     };
     
     // Attach .ics file if generated successfully
-    if (icsBlob) {
-      emailOptions.attachments = [icsBlob];
-    }
+    // COMMENTED OUT: Remove duplicate calendar invites - Google Calendar already sends invites
+    // if (icsBlob) {
+    //   emailOptions.attachments = [icsBlob];
+    // }
     
     MailApp.sendEmail(emailOptions);
   } catch (e) {
-    Logger.log('Error sending email to student: ' + e.toString());
   }
 
   // Send to mentor with .ics attachment
@@ -867,13 +1039,13 @@ OpenGrad Scheduling System
     };
     
     // Attach .ics file if generated successfully
-    if (icsBlob) {
-      emailOptions.attachments = [icsBlob];
-    }
+    // COMMENTED OUT: Remove duplicate calendar invites - Google Calendar already sends invites
+    // if (icsBlob) {
+    //   emailOptions.attachments = [icsBlob];
+    // }
     
     MailApp.sendEmail(emailOptions);
   } catch (e) {
-    Logger.log('Error sending email to mentor: ' + e.toString());
   }
 }
 
@@ -997,6 +1169,12 @@ function getAllBookings() {
 
       // Only include BOOKED slots as bookings
       if (status === 'BOOKED') {
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
         const booking = {
           booking_id: row[SLOT_COLS.SLOT_ID], // Use slot_id as booking_id
           slot_id: row[SLOT_COLS.SLOT_ID],
@@ -1004,9 +1182,9 @@ function getAllBookings() {
           mentor_name: row[SLOT_COLS.MENTOR_NAME],
           student_id: row[SLOT_COLS.STUDENT_ID],
           student_email: row[SLOT_COLS.STUDENT_EMAIL],
-          date: row[SLOT_COLS.DATE],
-          start_time: row[SLOT_COLS.START_TIME],
-          end_time: row[SLOT_COLS.END_TIME],
+          date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+          start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+          end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
           meet_link: row[SLOT_COLS.MEETING_LINK],
           status: 'confirmed', // All BOOKED slots are confirmed bookings
           feedback_sent: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] === 'DONE' ? 'Y' : 'N',
@@ -1055,8 +1233,8 @@ function getAllSlots() {
         mentor_id: row[SLOT_COLS.MENTOR_ID],
         mentor_name: row[SLOT_COLS.MENTOR_NAME],
         date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-        start_time: Utilities.formatDate(new Date(row[SLOT_COLS.START_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
-        end_time: Utilities.formatDate(new Date(row[SLOT_COLS.END_TIME]), Session.getScriptTimeZone(), 'HH:mm'),
+        start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+        end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
         status: row[SLOT_COLS.STATUS],
         booked_by: row[SLOT_COLS.BOOKED_BY],
         student_id: row[SLOT_COLS.STUDENT_ID],
@@ -1204,11 +1382,10 @@ function enqueueFeedbackJob(metadata) {
     
     // Calculate sendAt time: interview end time + 1 hour (in epoch milliseconds)
     const interviewEndTimeMs = metadata.interviewEndTime.getTime();
-    const sendAtMs = interviewEndTimeMs + (60 * 60 * 1000); // Add 1 hour
+    const sendAtMs = interviewEndTimeMs + (2 * 60 * 1000); // Add 2 minute
     
     // Don't enqueue if send time is in the past
     if (sendAtMs <= Date.now()) {
-      Logger.log('Send time is in the past, skipping job enqueue for event: ' + metadata.calendarEventId);
       return;
     }
     
@@ -1224,7 +1401,8 @@ function enqueueFeedbackJob(metadata) {
       studentName: metadata.studentName,
       interviewEndTime: interviewEndTimeMs, // Epoch milliseconds
       sendAt: sendAtMs, // Epoch milliseconds
-      sent: false // Boolean flag
+      sent: false, // Boolean flag
+      slotId: metadata.slotId // Add slot ID
     };
     
     // Check if job already exists (prevent duplicates)
@@ -1235,18 +1413,15 @@ function enqueueFeedbackJob(metadata) {
     if (existingJobIndex >= 0) {
       // Update existing job
       queue[existingJobIndex] = job;
-      Logger.log('Updated existing feedback job: ' + jobId);
     } else {
       // Add new job to queue
       queue.push(job);
-      Logger.log('Enqueued feedback job: ' + jobId + ' (sendAt: ' + new Date(sendAtMs).toISOString() + ')');
     }
     
     // Save updated queue back to PropertiesService
     properties.setProperty('FEEDBACK_QUEUE', JSON.stringify(queue));
     
   } catch (error) {
-    Logger.log('Error enqueueing feedback job: ' + error.toString());
     // Don't throw - allow booking to succeed even if job enqueueing fails
   }
 }
@@ -1265,20 +1440,19 @@ function processFeedbackQueue() {
     let queue = JSON.parse(queueJson);
     
     if (queue.length === 0) {
-      Logger.log('Feedback queue is empty');
       return;
     }
     
     const nowMs = Date.now(); // Current time in epoch milliseconds
     let queueUpdated = false;
     
-    // Feedback form links
-    const mentorFeedbackLink = 'https://forms.gle/MKVruH1J432Knz1V9';
-    const studentFeedbackLink = 'https://forms.gle/yeqQiMsYfTG3znNa7';
-    
     // Iterate over all jobs in queue
     queue.forEach(function(job) {
       try {
+        // Feedback form links with pre-filled slot ID
+        const mentorFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSeu2i6W5XgFURonGkeLHZImNDorhtATIdZuAwLFsjeiEOgxGA/viewform?usp=pp_url&entry.210157484=' + encodeURIComponent(job.slotId);
+        const studentFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSfaLGW2d3a2gBC98YQrFqvWWj6q4229w-LboPbqf4Oires5ZQ/viewform?usp=pp_url&entry.686317709=' + encodeURIComponent(job.slotId);
+
         // Skip if already sent
         if (job.sent === true) {
           return;
@@ -1312,10 +1486,7 @@ function processFeedbackQueue() {
             mentorSubject,
             mentorBody
           );
-          
-          Logger.log('Feedback email sent to mentor: ' + job.mentorEmail + ' (jobId: ' + job.id + ')');
         } catch (mentorEmailError) {
-          Logger.log('Error sending email to mentor: ' + mentorEmailError.toString() + ' (jobId: ' + job.id + ')');
           // Continue processing other jobs even if one fails
         }
         
@@ -1337,20 +1508,15 @@ function processFeedbackQueue() {
             studentSubject,
             studentBody
           );
-          
-          Logger.log('Feedback email sent to student: ' + job.studentEmail + ' (jobId: ' + job.id + ')');
         } catch (studentEmailError) {
-          Logger.log('Error sending email to student: ' + studentEmailError.toString() + ' (jobId: ' + job.id + ')');
           // Continue processing other jobs even if one fails
         }
         
         // Mark job as sent (idempotent - safe to run multiple times)
         job.sent = true;
         queueUpdated = true;
-        Logger.log('Marked feedback job as sent: ' + job.id);
         
       } catch (jobError) {
-        Logger.log('Error processing job ' + job.id + ': ' + jobError.toString());
         // Keep job in queue if processing failed - will retry on next trigger
       }
     });
@@ -1358,41 +1524,12 @@ function processFeedbackQueue() {
     // Save updated queue back to PropertiesService (only if changes were made)
     if (queueUpdated) {
       properties.setProperty('FEEDBACK_QUEUE', JSON.stringify(queue));
-      Logger.log('Updated feedback queue in PropertiesService');
     }
     
   } catch (error) {
-    Logger.log('Error in processFeedbackQueue: ' + error.toString());
     // Don't throw - allow trigger to continue running
   }
 }
 
-/**
- * Setup recurring time-driven trigger for feedback queue processing
- * Must be run manually once to initialize the system
- * Creates a trigger that runs every 5 minutes and calls processFeedbackQueue
- */
-function setupFeedbackQueueTrigger() {
-  try {
-    // Delete existing triggers for processFeedbackQueue to prevent duplicates
-    const triggers = ScriptApp.getProjectTriggers();
-    triggers.forEach(function(trigger) {
-      if (trigger.getHandlerFunction() === 'processFeedbackQueue') {
-        ScriptApp.deleteTrigger(trigger);
-        Logger.log('Deleted existing processFeedbackQueue trigger');
-      }
-    });
-    
-    // Create new time-driven trigger: runs every 5 minutes
-    ScriptApp.newTrigger('processFeedbackQueue')
-      .timeBased()
-      .everyMinutes(5)
-      .create();
-    
-    Logger.log('Feedback queue trigger set up successfully (runs every 5 minutes)');
-  } catch (error) {
-    Logger.log('Error setting up feedback queue trigger: ' + error.toString());
-    throw error;
-  }
-}
+
 
