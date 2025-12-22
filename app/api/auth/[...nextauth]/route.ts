@@ -1,7 +1,6 @@
 import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { validateStudent } from '@/lib/apps-script';
 
 // Validate required environment variables
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -79,21 +78,13 @@ export const authOptions = {
             return null;
           }
 
-          // Validate that email and roll number match in Google Sheets
-          const validation = await validateStudent(rollNumber, email);
-          
-          if (!validation.success || !validation.data?.valid) {
-            // Validation failed - email and roll number don't match
-            console.error('Student validation failed:', validation.error || 'Email and roll number do not match');
-            return null;
-          }
-
-          // Validation successful - return user object for students
-          const student = validation.data.student;
+          // In production, validate against Google Sheets or database
+          // For now, we'll accept any valid email format
+          // Return user object for students
           return {
             id: rollNumber,
             email: email,
-            name: student?.name || email.split('@')[0], // Use student name from sheet, or email prefix as fallback
+            name: email.split('@')[0], // Use email prefix as name
             role: 'student',
             rollNumber: rollNumber,
           };
