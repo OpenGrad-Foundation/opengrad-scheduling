@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { getAllStudents } from '@/lib/apps-script';
 
 // Validate required environment variables
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -78,15 +79,30 @@ export const authOptions = {
             return null;
           }
 
-          // In production, validate against Google Sheets or database
-          // For now, we'll accept any valid email format
+          // Fetch all students from Google Sheets
+          const studentsResult = await getAllStudents();
+          if (!studentsResult.success || !studentsResult.data) {
+            console.error('Failed to fetch students for authentication:', studentsResult.error);
+            return null;
+          }
+
+          // Find student with matching roll number (student_id) and email
+          const student = studentsResult.data.find((s: any) =>
+            s.student_id === rollNumber && s.email.toLowerCase() === email.toLowerCase()
+          );
+
+          if (!student) {
+            console.log('Student not found with roll number:', rollNumber, 'and email:', email);
+            return null;
+          }
+
           // Return user object for students
           return {
-            id: rollNumber,
-            email: email,
-            name: email.split('@')[0], // Use email prefix as name
+            id: student.student_id,
+            email: student.email,
+            name: student.name,
             role: 'student',
-            rollNumber: rollNumber,
+            rollNumber: student.student_id,
           };
         } catch (error) {
           console.error('Error in authorize:', error);

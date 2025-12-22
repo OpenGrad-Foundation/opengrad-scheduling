@@ -72,7 +72,7 @@ function SignInForm() {
           errorMessage = 'Error sending email. Please try again.';
           break;
         case 'CredentialsSignin':
-          errorMessage = 'Invalid credentials. Please check your roll number and email.';
+          errorMessage = 'Invalid student ID or email. Please check your credentials and try again.';
           break;
         case 'SessionRequired':
           errorMessage = 'Please sign in to access this page.';
@@ -142,7 +142,7 @@ function SignInForm() {
         let errorMessage = '';
         switch (result.error) {
           case 'CredentialsSignin':
-            errorMessage = 'Invalid credentials. Please check your roll number and email.';
+            errorMessage = 'Invalid student ID or email. Please check your credentials and try again.';
             break;
           case 'Configuration':
             errorMessage = 'Authentication is not properly configured. Please contact support.';
@@ -209,7 +209,7 @@ function SignInForm() {
           <form onSubmit={handleStudentSignIn} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Roll Number
+                Student ID (Roll Number)
               </label>
               <input
                 type="text"
@@ -221,7 +221,7 @@ function SignInForm() {
                     setFieldErrors({ ...fieldErrors, rollNumber: undefined });
                   }
                 }}
-                placeholder="Enter your roll number"
+                placeholder="Enter your student ID from the system"
                 className={`w-full rounded-lg placeholder-gray-500 text-black border px-3 py-2 focus:outline-none focus:ring-2 ${
                   fieldErrors.rollNumber
                     ? 'border-red-300 focus:ring-red-500'
