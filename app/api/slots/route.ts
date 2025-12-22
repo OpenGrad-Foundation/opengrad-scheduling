@@ -4,9 +4,9 @@ import { getOpenSlots, createSlot } from '@/lib/apps-script';
 import type { SlotCreationRequest } from '@/types';
 
 // GET /api/slots - Get open slots
-export async function GET(request: NextRequest) {
+export const GET = auth(async (request) => {
   try {
-    const session = await auth(request as any);
+    const session = request.auth;
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -40,19 +40,23 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/slots - Create a new slot (mentor only)
-export async function POST(request: NextRequest) {
+export const POST = auth(async (request) => {
   try {
     // Validate session
-    const session = await auth(request as any);
+    const session = request.auth;
+    console.log('[slots POST] Session:', session ? 'exists' : 'null');
+    
     if (!session || !session.user) {
+      console.error('[slots POST] No session or user');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify user is a mentor
     if (session.user.role !== 'mentor') {
+      console.warn('[slots POST] User is not a mentor:', session.user.role);
       return NextResponse.json(
         { error: 'Only mentors can create slots' },
         { status: 403 }
@@ -61,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Validate session user has required fields
     if (!session.user.email) {
-      console.error('Session user missing email:', session.user);
+      console.error('[slots POST] Session user missing email:', session.user);
       return NextResponse.json(
         { error: 'User email not found in session' },
         { status: 400 }
@@ -69,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!session.user.name) {
-      console.error('Session user missing name:', session.user);
+      console.error('[slots POST] Session user missing name:', session.user);
       return NextResponse.json(
         { error: 'User name not found in session' },
         { status: 400 }
@@ -81,7 +85,7 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json();
     } catch (jsonError) {
-      console.error('JSON parsing error:', jsonError);
+      console.error('[slots POST] JSON parsing error:', jsonError);
       return NextResponse.json(
         { error: 'Invalid JSON in request body' },
         { status: 400 }
@@ -138,7 +142,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Creating slot with data:', {
+    console.log('[slots POST] Creating slot with data:', {
       mentorEmail: body.mentorEmail,
       mentorName: body.mentorName,
       date: body.date,
@@ -147,9 +151,18 @@ export async function POST(request: NextRequest) {
     });
 
     const response = await createSlot(body);
+    console.log('[slots POST] Response success:', response?.success);
+
+    if (!response || typeof response !== 'object') {
+      console.error('[slots POST] Invalid response format:', response);
+      return NextResponse.json(
+        { error: 'Invalid response from Apps Script' },
+        { status: 500 }
+      );
+    }
 
     if (!response.success) {
-      console.error('createSlot failed:', response.error);
+      console.error('[slots POST] createSlot failed:', response.error);
       return NextResponse.json(
         { 
           error: response.error || 'Failed to create slot',
@@ -159,9 +172,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!response.data) {
+      console.warn('[slots POST] No data in successful response');
+      return NextResponse.json(
+        { error: 'Slot created but no data returned' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ slot: response.data });
   } catch (error) {
-    console.error('Error creating slot:', error);
+    console.error('[slots POST] Exception:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorStack = error instanceof Error ? error.stack : undefined;
     
@@ -174,5 +195,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 

@@ -4,6 +4,7 @@ import type { Slot, Booking, SlotCreationRequest } from '@/types';
 const APPS_SCRIPT_URL = process.env.NEXT_PUBLIC_APPS_SCRIPT_URL || '';
 
 export interface AppsScriptResponse<T = any> {
+  mentor?: any;
   success: boolean;
   data?: T;
   error?: string;
@@ -35,11 +36,37 @@ async function callAppsScript(
       }),
     });
 
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`Apps Script HTTP error ${response.status}:`, errorText.substring(0, 200));
+      return {
+        success: false,
+        error: `Apps Script returned ${response.status}: ${isJson ? JSON.parse(errorText).error || errorText : 'Non-JSON error response'}`,
+      };
+    }
+
+    if (!isJson) {
+      const text = await response.text();
+      console.error('Apps Script returned non-JSON response:', text.substring(0, 200));
+      return {
+        success: false,
+        error: 'Apps Script returned invalid response format (expected JSON)',
+      };
     }
 
     const data = await response.json();
+    
+    if (!data || typeof data !== 'object') {
+      console.error('Apps Script returned invalid data:', data);
+      return {
+        success: false,
+        error: 'Apps Script returned invalid data format',
+      };
+    }
+
     return data;
   } catch (error) {
     console.error('Apps Script call failed:', error);
@@ -118,5 +145,62 @@ export async function getStudentBookings(
   studentId: string
 ): Promise<AppsScriptResponse<Booking[]>> {
   return callAppsScript('getStudentBookings', { studentId });
+}
+
+/**
+ * Get mentor info by email
+ */
+export async function getMentorByEmail(
+  email: string
+): Promise<AppsScriptResponse<{ mentor_id: string; name: string; email: string }>> {
+  return callAppsScript('getMentorByEmail', { email });
+}
+
+/**
+ * Get all bookings for admin dashboard
+ */
+export async function getAllBookings(): Promise<AppsScriptResponse<Booking[]>> {
+  return callAppsScript('getAllBookings');
+}
+
+/**
+ * Get all slots for admin dashboard
+ */
+export async function getAllSlots(): Promise<AppsScriptResponse<Slot[]>> {
+  return callAppsScript('getAllSlots');
+}
+
+/**
+ * Get admin statistics
+ */
+export async function getAdminStats(): Promise<AppsScriptResponse<{
+  totalBookings: number;
+  completed: number;
+  noShows: number;
+  feedbackSubmitted: number;
+}>> {
+  return callAppsScript('getAdminStats');
+}
+
+/**
+ * Get all mentors
+ */
+export async function getAllMentors(): Promise<AppsScriptResponse<{
+  mentor_id: string;
+  name: string;
+  email: string;
+}[]>> {
+  return callAppsScript('getAllMentors');
+}
+
+/**
+ * Get all students
+ */
+export async function getAllStudents(): Promise<AppsScriptResponse<{
+  student_id: string;
+  name: string;
+  email: string;
+}[]>> {
+  return callAppsScript('getAllStudents');
 }
 

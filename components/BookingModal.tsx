@@ -17,8 +17,9 @@ export default function BookingModal({
   mentorName,
   onClose,
 }: BookingModalProps) {
-  const startTime = new Date(slot.start_time);
-  const endTime = new Date(slot.end_time);
+  // Combine date and time strings to create proper Date objects
+  const startTime = new Date(`${slot.date} ${slot.start_time}`);
+  const endTime = new Date(`${slot.date} ${slot.end_time}`);
 
   const addToCalendar = () => {
     // Create Google Calendar link
@@ -75,7 +76,7 @@ export default function BookingModal({
                     href={booking.meet_link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-blue-600 hover:text-blue-800 mt-1"
+                    className="flex items-center gap-2 text-teal-600 hover:text-teal-800 mt-1"
                   >
                     <Video className="h-4 w-4" />
                     <span className="break-all">{booking.meet_link}</span>
@@ -89,7 +90,7 @@ export default function BookingModal({
             {booking.meet_link && (
               <button
                 onClick={addToCalendar}
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg gradient-teal-green px-4 py-2 text-white hover:opacity-90 transition-opacity shadow-md"
               >
                 <Calendar className="h-4 w-4" />
                 Add to Calendar

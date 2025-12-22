@@ -306,6 +306,10 @@ GOOGLE_CLIENT_SECRET=paste-your-client-secret-here
 
 # Apps Script Web App URL (from Step 2.4)
 NEXT_PUBLIC_APPS_SCRIPT_URL=paste-your-web-app-url-here
+
+# Admin Credentials
+ADMIN_ID=your-admin-username
+ADMIN_PASSWORD=your-secure-admin-password
 ```
 
 **Example:**
@@ -317,6 +321,10 @@ GOOGLE_CLIENT_ID=123456789-abcdefghijklmnop.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz
 
 NEXT_PUBLIC_APPS_SCRIPT_URL=https://script.google.com/macros/s/AKfycby123456789/exec
+
+# Admin Credentials
+ADMIN_ID=admin
+ADMIN_PASSWORD=secure-admin-password-123
 ```
 
 ### 3.3 Restart the Dev Server

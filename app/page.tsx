@@ -1,33 +1,29 @@
 'use client';
 
-import Link from 'next/link';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
 import { Calendar, Users, BookOpen, Shield } from 'lucide-react';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function Home() {
-  const { data: session, status } = useSession();
   const router = useRouter();
+  const { isLoading, isAdmin } = useAuth({ redirectToRoleDashboard: true });
 
-  // Redirect authenticated users to their dashboard
+  // Redirect admin to dashboard
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.role) {
-      const role = session.user.role;
-      if (role === 'mentor') {
-        router.replace('/mentor');
-      } else if (role === 'student') {
-        router.replace('/student');
-      }
+    if (!isLoading && isAdmin) {
+      router.replace('/admin/dashboard');
     }
-  }, [status, session, router]);
+  }, [isLoading, isAdmin, router]);
 
   // Show loading state while checking authentication
-  if (status === 'loading') {
+  if (isLoading || isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-emerald-50 to-green-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
@@ -35,25 +31,38 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-emerald-50 to-green-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            OpenGrad Scheduling
+          <div className="flex justify-center mb-6">
+            <div className="relative w-24 h-24">
+              <Image
+                src="/opengrad-logo.png"
+                alt="OpenGrad Logo"
+                width={96}
+                height={96}
+                className="object-contain"
+                priority
+              />
+            </div>
+          </div>
+          <h1 className="text-5xl font-bold mb-4">
+            <span className="gradient-teal-green-text">OpenGrad</span>{' '}
+            <span className="text-gray-900">Scheduling</span>
           </h1>
-          <p className="text-xl text-gray-600 mb-8">
+          <p className="text-xl text-gray-700 mb-8 max-w-2xl mx-auto">
             Connect mentors and mentees for interview preparation sessions
           </p>
           <div className="flex gap-4 justify-center">
             <Link
               href="/student"
-              className="rounded-lg bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700 transition-colors"
+              className="rounded-lg gradient-teal-green px-8 py-3 text-white font-medium hover:opacity-90 transition-opacity shadow-lg"
             >
               Book a Session
             </Link>
             <Link
               href="/mentor"
-              className="rounded-lg border border-blue-600 px-6 py-3 text-blue-600 font-medium hover:bg-blue-50 transition-colors"
+              className="rounded-lg border-2 border-teal-600 px-8 py-3 text-teal-600 font-medium hover:bg-teal-50 transition-colors"
             >
               Mentor Dashboard
             </Link>
@@ -61,8 +70,10 @@ export default function Home() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-16">
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <Calendar className="h-8 w-8 text-blue-600 mb-4" />
+          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100">
+            <div className="w-12 h-12 rounded-lg gradient-teal-green flex items-center justify-center mb-4">
+              <Calendar className="h-6 w-6 text-white" />
+            </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Easy Scheduling
             </h3>
@@ -71,8 +82,10 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <BookOpen className="h-8 w-8 text-blue-600 mb-4" />
+          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100">
+            <div className="w-12 h-12 rounded-lg gradient-teal-green flex items-center justify-center mb-4">
+              <BookOpen className="h-6 w-6 text-white" />
+            </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Instant Booking
             </h3>
@@ -81,8 +94,10 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <Users className="h-8 w-8 text-blue-600 mb-4" />
+          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100">
+            <div className="w-12 h-12 rounded-lg gradient-teal-green flex items-center justify-center mb-4">
+              <Users className="h-6 w-6 text-white" />
+            </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Auto Calendar
             </h3>
@@ -91,8 +106,10 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <Shield className="h-8 w-8 text-blue-600 mb-4" />
+          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100">
+            <div className="w-12 h-12 rounded-lg gradient-teal-green flex items-center justify-center mb-4">
+              <Shield className="h-6 w-6 text-white" />
+            </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Secure & Reliable
             </h3>

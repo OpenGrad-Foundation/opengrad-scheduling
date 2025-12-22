@@ -56,9 +56,10 @@ export interface Booking {
   booking_id: string;
   slot_id: string;
   mentor_id: string;
+  mentor_name?: string;
   student_id: string;
   student_email: string;
-  mentor_email: string;
+  mentor_email?: string;
   meet_link?: string;
   calendar_event_id?: string;
   created_at: string;

@@ -168,14 +168,16 @@ function SignInForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 text-center">
-          Sign In
-        </h1>
-        <p className="text-gray-600 mb-8 text-center">
-          Sign in to access the scheduling system
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-emerald-50 to-green-50">
+      <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8 border border-gray-100">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold mb-2">
+            <span className="gradient-teal-green-text">Sign In</span>
+          </h1>
+          <p className="text-gray-600">
+            Sign in to access the scheduling system
+          </p>
+        </div>
 
         {/* Toggle between Student and Mentor */}
         <div className="mb-6 flex gap-2 bg-gray-100 rounded-lg p-1">
@@ -220,10 +222,10 @@ function SignInForm() {
                   }
                 }}
                 placeholder="Enter your roll number"
-                className={`w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 ${
+                className={`w-full rounded-lg placeholder-gray-500 text-black border px-3 py-2 focus:outline-none focus:ring-2 ${
                   fieldErrors.rollNumber
                     ? 'border-red-300 focus:ring-red-500'
-                    : 'border-gray-300 focus:ring-blue-500'
+                    : 'border-gray-300 focus:ring-teal-500'
                 }`}
               />
               {fieldErrors.rollNumber && (
@@ -245,10 +247,10 @@ function SignInForm() {
                   }
                 }}
                 placeholder="Enter your email"
-                className={`w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 ${
+                className={`w-full rounded-lg placeholder-gray-500 text-black border px-3 py-2 focus:outline-none focus:ring-2 ${
                   fieldErrors.email
                     ? 'border-red-300 focus:ring-red-500'
-                    : 'border-gray-300 focus:ring-blue-500'
+                    : 'border-gray-300 focus:ring-teal-500'
                 }`}
               />
               {fieldErrors.email && (
@@ -274,7 +276,7 @@ function SignInForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full rounded-lg gradient-teal-green px-4 py-3 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-md"
             >
               {loading ? 'Signing in...' : 'Sign In as Student'}
             </button>
@@ -344,9 +346,9 @@ function SignInForm() {
 export default function SignIn() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-emerald-50 to-green-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>

@@ -10,7 +10,7 @@
  */
 
 // Configuration - Update these with your Sheet IDs
-const SHEET_ID = 'YOUR_SHEET_ID_HERE'; // Replace with your Google Sheet ID
+const SHEET_ID = '1Q2wtN06zk3LbY8lZ9YahpVpe8Y_xGFUo7fuewuai_Ik'; // Replace with your Google Sheet ID
 const SPREADSHEET = SpreadsheetApp.openById(SHEET_ID);
 
 // Sheet names
@@ -55,51 +55,184 @@ const MENTOR_COLS = {
 };
 
 /**
+ * FORM SUBMISSION HANDLER - Handles both Mentor and Student feedback
+ * Use "From spreadsheet" -> "On form submit" trigger for this function
+ */
+function onFormSubmit(e) {
+  try {
+    const sheetName = e.range.getSheet().getName();
+    const namedValues = e.namedValues;
+    
+    // Find Slot ID in the submitted values
+    let slotId = null;
+    const keys = Object.keys(namedValues);
+    
+    for (const key of keys) {
+      const val = namedValues[key] ? namedValues[key][0] : "";
+      const cleanKey = key.toLowerCase().trim();
+      
+      // Check if key is exactly "slot id" or contains "slot"
+      if (cleanKey === 'slot id' || cleanKey.includes('slot')) {
+        if (val && val.toString().trim() !== "") {
+          slotId = val.toString().trim();
+          break;
+        }
+      }
+      
+      // Fallback: check if the value itself looks like "SLOT001"
+      if (val && /^SLOT\d+$/i.test(val.toString().trim())) {
+        slotId = val.toString().trim();
+        break;
+      }
+    }
+    
+    if (!slotId) {
+      Logger.log('ERROR: Slot ID value is EMPTY. Make sure the "Slot ID" field in the form is filled. Available keys: ' + keys.join(', '));
+      return;
+    }
+
+    if (sheetName.toLowerCase().includes('mentor')) {
+      updateFeedbackStatus(slotId, 'mentor');
+    } else if (sheetName.toLowerCase().includes('mentee') || sheetName.toLowerCase().includes('student')) {
+      updateFeedbackStatus(slotId, 'student');
+    }
+  } catch (error) {
+    Logger.log('Error in onFormSubmit: ' + error.toString());
+  }
+}
+
+function updateFeedbackStatus(slotId, feedbackType) {
+  try {
+    const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!slotsSheet) return;
+
+    const data = slotsSheet.getDataRange().getValues();
+    let slotRow = -1;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][SLOT_COLS.SLOT_ID] === slotId) {
+        slotRow = i + 1;
+        break;
+      }
+    }
+
+    if (slotRow !== -1) {
+      if (feedbackType === 'mentor') {
+        slotsSheet.getRange(slotRow, SLOT_COLS.FEEDBACK_STATUS_MENTOR + 1).setValue('DONE');
+      } else if (feedbackType === 'student') {
+        slotsSheet.getRange(slotRow, SLOT_COLS.FEEDBACK_STATUS_STUDENT + 1).setValue('DONE');
+      }
+    }
+  } catch (error) {
+    Logger.log('Error updating feedback status: ' + error.toString());
+  }
+}
+
+/**
  * Web app entry point - handles all API calls
  */
 function doPost(e) {
   try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput(
+        JSON.stringify({ success: false, error: 'Invalid request: missing postData' })
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
+
     const request = JSON.parse(e.postData.contents);
     const functionName = request.function;
     const parameters = request.parameters || {};
 
-    let result;
-    switch (functionName) {
-      case 'getOpenSlots':
-        result = getOpenSlots();
-        break;
-      case 'bookSlot':
-        result = bookSlot(
-          parameters.slotId,
-          parameters.studentId,
-          parameters.studentName,
-          parameters.studentEmail
-        );
-        break;
-      case 'getMentorSlots':
-        result = getMentorSlots(parameters.mentorId);
-        break;
-      case 'createSlot':
-        result = createSlot(parameters);
-        break;
-      case 'cancelSlot':
-        result = cancelSlot(parameters.slotId, parameters.mentorId);
-        break;
-      case 'getStudentBookings':
-        result = getStudentBookings(parameters.studentId);
-        break;
-      case 'submitFeedback':
-        result = submitFeedback(parameters);
-        break;
-      default:
-        return ContentService.createTextOutput(
-          JSON.stringify({ success: false, error: 'Unknown function' })
-        ).setMimeType(ContentService.MimeType.JSON);
+    if (!functionName) {
+      return ContentService.createTextOutput(
+        JSON.stringify({ success: false, error: 'Missing function name' })
+      ).setMimeType(ContentService.MimeType.JSON);
     }
 
-    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(
-      ContentService.MimeType.JSON
-    );
+    let result;
+    try {
+      switch (functionName) {
+        case 'getOpenSlots':
+          result = getOpenSlots();
+          break;
+        case 'bookSlot':
+          result = bookSlot(
+            parameters.slotId,
+            parameters.studentId,
+            parameters.studentName,
+            parameters.studentEmail
+          );
+          break;
+        case 'getMentorByEmail':
+          result = getMentorByEmail(parameters.email);
+          break;
+        case 'getMentorSlots':
+          result = getMentorSlots(parameters.mentorId);
+          break;
+        case 'createSlot':
+          result = createSlot(parameters);
+          break;
+        case 'cancelSlot':
+          result = cancelSlot(parameters.slotId, parameters.mentorId);
+          break;
+        case 'getStudentBookings':
+          result = getStudentBookings(parameters.studentId);
+          break;
+        case 'submitFeedback':
+          result = submitFeedback(parameters);
+          break;
+        case 'getAllMentors':
+          result = getAllMentors();
+          break;
+        case 'getAllStudents':
+          result = getAllStudents();
+          break;
+        case 'getAllBookings':
+          result = getAllBookings();
+          break;
+        case 'getAllSlots':
+          result = getAllSlots();
+          break;
+        case 'getAdminStats':
+          result = getAdminStats();
+          break;
+        case 'processFeedbackQueue':
+          processFeedbackQueue();
+          result = { success: true, message: 'Feedback queue processed successfully' };
+          break;
+        default:
+          return ContentService.createTextOutput(
+            JSON.stringify({ success: false, error: 'Unknown function: ' + functionName })
+          ).setMimeType(ContentService.MimeType.JSON);
+      }
+    } catch (functionError) {
+      return ContentService.createTextOutput(
+        JSON.stringify({ success: false, error: 'Function execution error: ' + functionError.toString() })
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Normalize result to ensure correct format
+    if (!result || typeof result !== 'object') {
+      return ContentService.createTextOutput(
+        JSON.stringify({ success: false, error: 'Invalid result format from function' })
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // If result already has success property, use it as-is
+    if (result.success === true) {
+      return ContentService.createTextOutput(
+        JSON.stringify(result)
+      ).setMimeType(ContentService.MimeType.JSON);
+    } else if (result.success === false) {
+      return ContentService.createTextOutput(
+        JSON.stringify(result)
+      ).setMimeType(ContentService.MimeType.JSON);
+    } else {
+      // If result doesn't have success property, wrap it
+      return ContentService.createTextOutput(
+        JSON.stringify({ success: true, data: result })
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
   } catch (error) {
     return ContentService.createTextOutput(
       JSON.stringify({ success: false, error: error.toString() })
@@ -126,20 +259,37 @@ function getOpenSlots() {
     const openSlots = rows
       .filter((row) => {
         const status = row[SLOT_COLS.STATUS];
-        const slotDate = new Date(row[SLOT_COLS.DATE]);
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
         slotDate.setHours(0, 0, 0, 0);
         return status === 'OPEN' && slotDate >= today;
       })
-      .map((row) => ({
-        slot_id: row[SLOT_COLS.SLOT_ID],
-        mentor_id: row[SLOT_COLS.MENTOR_ID],
-        mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
-        date: row[SLOT_COLS.DATE],
-        start_time: row[SLOT_COLS.START_TIME],
-        end_time: row[SLOT_COLS.END_TIME],
-        status: row[SLOT_COLS.STATUS],
-        meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
-      }));
+      .map((row) => {
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
+        
+        const startTimeVal = row[SLOT_COLS.START_TIME];
+        const endTimeVal = row[SLOT_COLS.END_TIME];
+        
+        return {
+          slot_id: row[SLOT_COLS.SLOT_ID],
+          mentor_id: row[SLOT_COLS.MENTOR_ID],
+          mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
+          date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+          start_time: formatTimeValue(startTimeVal),
+          end_time: formatTimeValue(endTimeVal),
+          status: row[SLOT_COLS.STATUS],
+          meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
+        };
+      });
 
     return { success: true, data: openSlots };
   } catch (error) {
@@ -227,7 +377,13 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
     }
 
     // Create date-time objects for calendar
-    const slotDate = new Date(slotData[SLOT_COLS.DATE]);
+    let slotDate = slotData[SLOT_COLS.DATE];
+    if (typeof slotDate === 'string') {
+      slotDate = new Date(slotDate);
+    } else if (typeof slotDate === 'number') {
+      slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+    }
+    // If it's already a Date object, use it as is
     const startTimeStr = slotData[SLOT_COLS.START_TIME];
     const endTimeStr = slotData[SLOT_COLS.END_TIME];
     
@@ -238,48 +394,57 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
     let calendarEventId = '';
     let meetLink = '';
 
-    // Create calendar event with Google Meet
+    // Create calendar event with Google Meet using Calendar API v3
     try {
-      const calendar = CalendarApp.getDefaultCalendar();
+      const calendarId = 'primary'; // Use 'primary' for your main calendar
       const eventTitle = `Interview: ${studentName} with ${mentorName}`;
       
-      const event = calendar.createEvent(
-        eventTitle,
-        startTime,
-        endTime,
-        {
-          guests: `${studentEmail}, ${mentorEmail}`,
-          sendInvites: true,
-        }
-      );
-
-      // Add Google Meet conference
-      try {
-        event.addConference(CalendarApp.ConferenceType.HANGOUT);
-      } catch (e) {
-        console.log('Could not add Meet conference:', e);
-      }
-
-      calendarEventId = event.getId();
-      
-      // Get Meet link
-      try {
-        const conferenceData = event.getConferenceData();
-        if (conferenceData) {
-          const entryPoints = conferenceData.getEntryPoints();
-          if (entryPoints && entryPoints.length > 0) {
-            meetLink = entryPoints[0].getUri();
+      const eventDetails = {
+        summary: eventTitle,
+        start: {
+          dateTime: startTime.toISOString(),
+        },
+        end: {
+          dateTime: endTime.toISOString(),
+        },
+        organizer: {
+          email: mentorEmail,
+          displayName: mentorName
+        },
+        attendees: [
+          { email: studentEmail },
+          { email: mentorEmail }
+        ],
+        // The key part to add the Meet link
+        conferenceData: {
+          createRequest: {
+            requestId: "meet-request-" + Utilities.getUuid(), // Use a unique ID
+            conferenceSolutionKey: {
+              type: "hangoutsMeet"
+            }
           }
-        }
-        if (!meetLink) {
-          meetLink = event.getHtmlLink();
-        }
-      } catch (e) {
-        console.log('Could not get Meet link:', e);
-        meetLink = event.getHtmlLink() || '';
-      }
+        },
+        description: `Interview scheduled between ${studentName} and ${mentorName}`
+      };
+
+      // Insert the event using Calendar API v3
+      const newEvent = Calendar.Events.insert(eventDetails, calendarId, {
+        conferenceDataVersion: 1,
+        sendUpdates: 'all' // Send invites to attendees
+      });
+
+      calendarEventId = newEvent.id;
+      
+      // Get the generated Google Meet link from the created event
+      // Use conferenceData.entryPoints[0].uri as the reliable source
+      meetLink =
+        newEvent.conferenceData &&
+        newEvent.conferenceData.entryPoints &&
+        newEvent.conferenceData.entryPoints.length > 0
+          ? newEvent.conferenceData.entryPoints[0].uri
+          : '';
+      
     } catch (calendarError) {
-      console.error('Calendar creation error:', calendarError);
       // Continue with booking even if calendar creation fails
     }
 
@@ -319,10 +484,27 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
         meetLink: meetLink || '',
         studentName,
         mentorName,
+        studentEmail: studentEmail,
+        mentorEmail: mentorEmail,
+        date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
       });
     } catch (emailError) {
-      console.error('Email error:', emailError);
       // Don't fail booking if email fails
+    }
+
+    // Enqueue feedback email job (meeting end time + 1 hour)
+    try {
+      enqueueFeedbackJob({
+        calendarEventId: calendarEventId || 'slot-' + slotId,
+        mentorEmail: mentorEmail,
+        studentEmail: studentEmail,
+        mentorName: mentorName,
+        studentName: studentName,
+        interviewEndTime: endTime,
+        slotId: slotId, // Add slot ID
+      });
+    } catch (jobError) {
+      // Don't fail booking if job enqueueing fails
     }
 
     return {
@@ -344,6 +526,33 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Format time value from Google Sheets (handles string and numeric formats)
+ */
+function formatTimeValue(timeValue) {
+  // Handle null, undefined, or empty values
+  if (timeValue === null || timeValue === undefined || timeValue === '') {
+    return '';
+  }
+  
+  if (typeof timeValue === 'string') {
+    // Already in HH:mm or H:mm format
+    return timeValue.trim();
+  } else if (typeof timeValue === 'number') {
+    // Google Sheets time as decimal (0 = 00:00, 0.5 = 12:00, etc.)
+    const hours = Math.floor(timeValue * 24);
+    const minutes = Math.floor((timeValue * 24 * 60) % 60);
+    return ('0' + hours).slice(-2) + ':' + ('0' + minutes).slice(-2);
+  } else if (typeof timeValue === 'object' && timeValue instanceof Date) {
+    // If it's already a Date object, format it
+    const hours = ('0' + timeValue.getHours()).slice(-2);
+    const minutes = ('0' + timeValue.getMinutes()).slice(-2);
+    return hours + ':' + minutes;
+  }
+  
+  return '';
 }
 
 /**
@@ -377,10 +586,27 @@ function parseDateTime(date, timeStr) {
       minutes = parseInt(parts[1]) || 0;
     }
   } else if (typeof timeStr === 'object' && timeStr instanceof Date) {
-    return timeStr;
+    // FIX: Extract time from the Date object (which is likely 1899-12-30 from Sheets)
+    // Do NOT return timeStr directly as it has the wrong date component
+    hours = timeStr.getHours();
+    minutes = timeStr.getMinutes();
+  } else if (typeof timeStr === 'number') {
+    // Handle decimal time from sheets (e.g. 0.75 = 18:00)
+    hours = Math.floor(timeStr * 24);
+    minutes = Math.floor((timeStr * 24 * 60) % 60);
   }
   
+  // Create new date object from the base date
   const result = new Date(date);
+  
+  // Validate result date
+  if (isNaN(result.getTime())) {
+    // Fallback to today if invalid
+    const today = new Date();
+    today.setHours(hours, minutes, 0, 0);
+    return today;
+  }
+  
   result.setHours(hours, minutes, 0, 0);
   return result;
 }
@@ -400,23 +626,31 @@ function getMentorSlots(mentorId) {
 
     const mentorSlots = rows
       .filter((row) => row[SLOT_COLS.MENTOR_ID] === mentorId)
-      .map((row) => ({
-        slot_id: row[SLOT_COLS.SLOT_ID],
-        mentor_id: row[SLOT_COLS.MENTOR_ID],
-        mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
-        date: row[SLOT_COLS.DATE],
-        start_time: row[SLOT_COLS.START_TIME],
-        end_time: row[SLOT_COLS.END_TIME],
-        status: row[SLOT_COLS.STATUS],
-        booked_by: row[SLOT_COLS.BOOKED_BY] || '',
-        student_id: row[SLOT_COLS.STUDENT_ID] || '',
-        student_email: row[SLOT_COLS.STUDENT_EMAIL] || '',
-        meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
-        feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
-        feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
-        timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED] || '',
-        timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
-      }));
+      .map((row) => {
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
+        return {
+          slot_id: row[SLOT_COLS.SLOT_ID],
+          mentor_id: row[SLOT_COLS.MENTOR_ID],
+          mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
+          date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+          start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+          end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
+          status: row[SLOT_COLS.STATUS],
+          booked_by: row[SLOT_COLS.BOOKED_BY] || '',
+          student_id: row[SLOT_COLS.STUDENT_ID] || '',
+          student_email: row[SLOT_COLS.STUDENT_EMAIL] || '',
+          meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
+          feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
+          feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
+          timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED] || '',
+          timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
+        };
+      });
 
     return { success: true, data: mentorSlots };
   } catch (error) {
@@ -477,7 +711,7 @@ function createSlot(parameters) {
       slotId,                                    // Slot_ID
       mentorId,                                  // Mentor_ID (or Mentor_Email)
       parameters.mentorName,                     // Mentor_Name
-      parameters.date,                           // Date
+      new Date(parameters.date + 'T00:00:00'),   // Date
       parameters.start,                          // Start_Time
       parameters.end,                            // End_Time
       'OPEN',                                    // Status
@@ -555,20 +789,28 @@ function getStudentBookings(studentId) {
 
     const bookings = rows
       .filter((row) => row[SLOT_COLS.STUDENT_ID] === studentId && row[SLOT_COLS.STATUS] === 'BOOKED')
-      .map((row) => ({
+      .map((row) => {
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
+        return ({
         slot_id: row[SLOT_COLS.SLOT_ID],
         mentor_id: row[SLOT_COLS.MENTOR_ID],
         mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
-        date: row[SLOT_COLS.DATE],
-        start_time: row[SLOT_COLS.START_TIME],
-        end_time: row[SLOT_COLS.END_TIME],
+        date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+        start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+        end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
         student_id: row[SLOT_COLS.STUDENT_ID],
         student_email: row[SLOT_COLS.STUDENT_EMAIL],
         meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
         feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
         feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
         timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
-      }));
+      });
+      });
 
     return { success: true, data: bookings };
   } catch (error) {
@@ -577,13 +819,121 @@ function getStudentBookings(studentId) {
 }
 
 /**
- * Send booking confirmation email with calendar invite
+ * Generate .ics calendar file content (RFC 5545 compliant)
+ * @param {Date} startTime - Event start time
+ * @param {Date} endTime - Event end time
+ * @param {string} mentorName - Mentor name
+ * @param {string} studentName - Student name
+ * @param {string} meetLink - Google Meet link (optional)
+ * @param {string} studentEmail - Student email (optional)
+ * @param {string} mentorEmail - Mentor email (optional)
+ * @return {string} .ics file content
+ */
+function generateICSFile(startTime, endTime, mentorName, studentName, meetLink, studentEmail, mentorEmail) {
+  // Validate inputs are Date objects
+  if (!(startTime instanceof Date) || isNaN(startTime.getTime())) {
+    startTime = new Date();
+  }
+  if (!(endTime instanceof Date) || isNaN(endTime.getTime())) {
+    endTime = new Date();
+  }
+  
+  // Format date to UTC in RFC 5545 format: YYYYMMDDTHHMMSSZ
+  function formatICSDate(date) {
+    // Additional validation to prevent the 1899 issue
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      date = new Date();
+    }
+    const year = date.getUTCFullYear();
+    const month = ('0' + (date.getUTCMonth() + 1)).slice(-2);
+    const day = ('0' + date.getUTCDate()).slice(-2);
+    const hours = ('0' + date.getUTCHours()).slice(-2);
+    const minutes = ('0' + date.getUTCMinutes()).slice(-2);
+    const seconds = ('0' + date.getUTCSeconds()).slice(-2);
+    const formatted = year + month + day + 'T' + hours + minutes + seconds + 'Z';
+    return formatted;
+  }
+  
+  // Escape special characters in text fields (RFC 5545)
+  function escapeICSText(text) {
+    if (!text) return '';
+    return text
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '');
+  }
+  
+  const now = new Date();
+  const uid = 'opengrad-' + Utilities.getUuid() + '@opengrad.in';
+  const summary = 'Interview Session: ' + studentName + ' with ' + mentorName;
+  
+  // Build description with Meet link
+  let description = 'Interview session between ' + studentName + ' and ' + mentorName;
+  if (meetLink) {
+    description += '\n\nGoogle Meet Link: ' + meetLink;
+  }
+  
+  // Build location with Meet link if available
+  const location = meetLink || 'Online';
+  
+  // Build ICS content with ATTENDEE and ORGANIZER properties
+  const icsLines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//OpenGrad//Interview Scheduling//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:REQUEST',
+    'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
+    'BEGIN:VEVENT',
+    'UID:' + uid,
+    'DTSTAMP:' + formatICSDate(now),
+    'DTSTART:' + formatICSDate(startTime),
+    'DTEND:' + formatICSDate(endTime),
+    'SUMMARY:' + escapeICSText(summary),
+    'DESCRIPTION:' + escapeICSText(description),
+    'LOCATION:' + escapeICSText(location),
+    'STATUS:CONFIRMED',
+    'SEQUENCE:0'
+  ];
+  
+  // Add ORGANIZER property (use mentor as organizer)
+  if (mentorEmail) {
+    icsLines.push('ORGANIZER;CN=' + escapeICSText(mentorName) + ':mailto:' + mentorEmail);
+  }
+  
+  // Add ATTENDEE properties for both participants
+  if (studentEmail) {
+    icsLines.push('ATTENDEE;CN=' + escapeICSText(studentName) + ';RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:' + studentEmail);
+  }
+  if (mentorEmail) {
+    icsLines.push('ATTENDEE;CN=' + escapeICSText(mentorName) + ';RSVP=TRUE;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:' + mentorEmail);
+  }
+  
+  // Add VALARM (alarm/reminder)
+  icsLines.push('BEGIN:VALARM');
+  icsLines.push('TRIGGER:-PT15M');
+  icsLines.push('ACTION:DISPLAY');
+  icsLines.push('DESCRIPTION:Reminder: Interview session in 15 minutes');
+  icsLines.push('END:VALARM');
+  icsLines.push('END:VEVENT');
+  icsLines.push('END:VCALENDAR');
+  
+  // Generate .ics content (CRLF line endings required by RFC 5545)
+  const icsContent = icsLines.join('\r\n');
+  
+  return icsContent;
+}
+
+/**
+ * Send booking confirmation email with .ics calendar attachment
  */
 function sendBookingConfirmation(studentEmail, mentorEmail, bookingData) {
   const subject = 'Interview Session Confirmed - OpenGrad';
   
-  // Format dates
-  const dateStr = Utilities.formatDate(bookingData.startTime, Session.getScriptTimeZone(), 'EEEE, MMMM d, yyyy');
+  // Format dates - extract date components to avoid timezone issues
+  const dateStr = Utilities.formatDate(new Date(bookingData.date + 'T00:00:00'), Session.getScriptTimeZone(), 'EEEE, MMMM d, yyyy');
   const startTimeStr = Utilities.formatDate(bookingData.startTime, Session.getScriptTimeZone(), 'h:mm a');
   const endTimeStr = Utilities.formatDate(bookingData.endTime, Session.getScriptTimeZone(), 'h:mm a');
   
@@ -599,7 +949,7 @@ function sendBookingConfirmation(studentEmail, mentorEmail, bookingData) {
         <p><strong>Time:</strong> ${startTimeStr} - ${endTimeStr}</p>
         <p><strong>Student:</strong> ${bookingData.studentName}</p>
         <p><strong>Mentor:</strong> ${bookingData.mentorName}</p>
-        ${bookingData.meetLink ? `<p><strong>Google Meet Link:</strong> <a href="${bookingData.meetLink}" style="color: #1a73e8;">${bookingData.meetLink}</a></p>` : ''}
+        ${bookingData.meetLink ? `<p><strong>Google Meet Link:</strong> <a href="${bookingData.meetLink}" style="color: #1a73e8; word-break: break-all;">${bookingData.meetLink}</a></p>` : ''}
       </div>
       
       ${bookingData.meetLink ? `
@@ -611,7 +961,8 @@ function sendBookingConfirmation(studentEmail, mentorEmail, bookingData) {
       ` : ''}
       
       <p style="color: #666; font-size: 14px; margin-top: 30px;">
-        A calendar invite has been sent to your email. Please add it to your calendar.<br>
+        A calendar invite with Google Meet link has been sent to your email by Google Calendar.<br>
+        Please check your calendar and accept the invite.<br>
         Make sure to attend on time. You will receive a feedback form after the session.
       </p>
       
@@ -624,112 +975,115 @@ function sendBookingConfirmation(studentEmail, mentorEmail, bookingData) {
   
   // Plain text version
   const plainBody = `
-Your interview session has been confirmed!
+  Your interview session has been confirmed!
 
-Date: ${dateStr}
-Time: ${startTimeStr} - ${endTimeStr}
-Student: ${bookingData.studentName}
-Mentor: ${bookingData.mentorName}
+  Date: ${dateStr}
+  Time: ${startTimeStr} - ${endTimeStr}
+  Student: ${bookingData.studentName}
+  Mentor: ${bookingData.mentorName}
 
-${bookingData.meetLink ? `Google Meet Link: ${bookingData.meetLink}` : 'A calendar invite has been sent to you.'}
+  ${bookingData.meetLink ? `Google Meet Link: ${bookingData.meetLink}` : ''}
 
-Please make sure to attend on time. You will receive a feedback form after the session.
+  A calendar invite with Google Meet link has been sent to your email by Google Calendar.
+  Please check your calendar and accept the invite.
 
-Best regards,
-OpenGrad Scheduling System
-  `;
+  Please make sure to attend on time. You will receive a feedback form after the session.
 
-  // Generate ICS calendar file content
-  const icsContent = generateICSFile(bookingData, studentEmail, mentorEmail);
+  Best regards,
+  OpenGrad Scheduling System
+    `;
   
-  // Send to student
+  // Generate .ics calendar file
+  let icsBlob = null;
   try {
-    const studentBlob = Utilities.newBlob(icsContent, 'text/calendar', 'invite.ics');
-    MailApp.sendEmail({
+    const icsContent = generateICSFile(
+      bookingData.startTime,
+      bookingData.endTime,
+      bookingData.mentorName,
+      bookingData.studentName,
+      bookingData.meetLink || '',
+      bookingData.studentEmail || '',
+      bookingData.mentorEmail || ''
+    );
+    icsBlob = Utilities.newBlob(icsContent, 'text/calendar', 'interview-session.ics');
+  } catch (icsError) {
+    // Continue without attachment if generation fails
+  }
+  
+  // Send to student with .ics attachment
+  try {
+    const emailOptions = {
       to: studentEmail,
       subject: subject,
       htmlBody: htmlBody,
       body: plainBody,
-      attachments: [studentBlob],
-    });
+    };
+    
+    // Attach .ics file if generated successfully
+    // COMMENTED OUT: Remove duplicate calendar invites - Google Calendar already sends invites
+    // if (icsBlob) {
+    //   emailOptions.attachments = [icsBlob];
+    // }
+    
+    MailApp.sendEmail(emailOptions);
   } catch (e) {
-    console.error('Error sending email to student:', e);
-    MailApp.sendEmail({
-      to: studentEmail,
-      subject: subject,
-      body: plainBody,
-    });
   }
 
-  // Send to mentor
+  // Send to mentor with .ics attachment
   try {
-    const mentorBlob = Utilities.newBlob(icsContent, 'text/calendar', 'invite.ics');
-    MailApp.sendEmail({
+    const emailOptions = {
       to: mentorEmail,
       subject: subject,
       htmlBody: htmlBody,
       body: plainBody,
-      attachments: [mentorBlob],
-    });
+    };
+    
+    // Attach .ics file if generated successfully
+    // COMMENTED OUT: Remove duplicate calendar invites - Google Calendar already sends invites
+    // if (icsBlob) {
+    //   emailOptions.attachments = [icsBlob];
+    // }
+    
+    MailApp.sendEmail(emailOptions);
   } catch (e) {
-    console.error('Error sending email to mentor:', e);
-    MailApp.sendEmail({
-      to: mentorEmail,
-      subject: subject,
-      body: plainBody,
-    });
   }
 }
 
-/**
- * Generate ICS calendar file content
- */
-function generateICSFile(bookingData, studentEmail, mentorEmail) {
-  const formatICSDate = (date) => {
-    return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyyMMdd'T'HHmmss'Z'");
-  };
-  
-  const startDate = formatICSDate(bookingData.startTime);
-  const endDate = formatICSDate(bookingData.endTime);
-  const now = formatICSDate(new Date());
-  const uid = bookingData.bookingId + '@opengrad-scheduling';
-  
-  const description = `Interview session between ${bookingData.studentName} and ${bookingData.mentorName}.\n\n${bookingData.meetLink ? `Google Meet Link: ${bookingData.meetLink}` : ''}`;
-  const location = bookingData.meetLink || 'Online';
-  
-  const ics = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//OpenGrad Scheduling//EN
-CALSCALE:GREGORIAN
-METHOD:REQUEST
-BEGIN:VEVENT
-DTSTART:${startDate}
-DTEND:${endDate}
-DTSTAMP:${now}
-ORGANIZER;CN=${bookingData.mentorName}:mailto:${mentorEmail}
-UID:${uid}
-ATTENDEE;CN=${bookingData.studentName};RSVP=TRUE:mailto:${studentEmail}
-ATTENDEE;CN=${bookingData.mentorName};RSVP=TRUE:mailto:${mentorEmail}
-SUMMARY:Interview Session - ${bookingData.studentName} with ${bookingData.mentorName}
-DESCRIPTION:${description.replace(/\n/g, '\\n')}
-LOCATION:${location}
-STATUS:CONFIRMED
-SEQUENCE:0
-BEGIN:VALARM
-TRIGGER:-PT15M
-ACTION:DISPLAY
-DESCRIPTION:Reminder: Interview session in 15 minutes
-END:VALARM
-END:VEVENT
-END:VCALENDAR`;
-
-  return ics;
-}
 
 /**
  * Submit feedback after interview
  * Expected parameters: { slotId, feedbackType: 'mentor' | 'student', feedbackData: {...} }
  */
+function getMentorByEmail(email) {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_MENTORS);
+    if (!sheet) {
+      return { success: false, error: 'Mentors sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const rows = data.slice(1); // Skip header
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (row[MENTOR_COLS.MENTOR_EMAIL] === email) {
+        return {
+          success: true,
+          mentor: {
+            mentor_id: row[MENTOR_COLS.MENTOR_ID],
+            name: row[MENTOR_COLS.MENTOR_NAME],
+            email: row[MENTOR_COLS.MENTOR_EMAIL],
+          },
+        };
+      }
+    }
+
+    return { success: false, error: 'Mentor not found' };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
 function submitFeedback(parameters) {
   try {
     const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
@@ -794,3 +1148,388 @@ function submitFeedback(parameters) {
     return { success: false, error: error.toString() };
   }
 }
+
+/**
+ * Get all bookings (BOOKED slots) for admin dashboard
+ */
+function getAllBookings() {
+  try {
+    const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!slotsSheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = slotsSheet.getDataRange().getValues();
+    const bookings = [];
+
+    // Skip header row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const status = row[SLOT_COLS.STATUS];
+
+      // Only include BOOKED slots as bookings
+      if (status === 'BOOKED') {
+        let slotDate = row[SLOT_COLS.DATE];
+        if (typeof slotDate === 'string') {
+          slotDate = new Date(slotDate);
+        } else if (typeof slotDate === 'number') {
+          slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+        }
+        const booking = {
+          booking_id: row[SLOT_COLS.SLOT_ID], // Use slot_id as booking_id
+          slot_id: row[SLOT_COLS.SLOT_ID],
+          mentor_id: row[SLOT_COLS.MENTOR_ID],
+          mentor_name: row[SLOT_COLS.MENTOR_NAME],
+          student_id: row[SLOT_COLS.STUDENT_ID],
+          student_email: row[SLOT_COLS.STUDENT_EMAIL],
+          date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+          start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+          end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
+          meet_link: row[SLOT_COLS.MEETING_LINK],
+          status: 'confirmed', // All BOOKED slots are confirmed bookings
+          feedback_sent: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] === 'DONE' ? 'Y' : 'N',
+          feedback_submitted: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] === 'DONE' ? 'Y' : 'N',
+          created_at: row[SLOT_COLS.TIMESTAMP_BOOKED] || row[SLOT_COLS.TIMESTAMP_CREATED],
+          timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED],
+          timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
+        };
+        bookings.push(booking);
+      }
+    }
+
+    return {
+      success: true,
+      data: bookings,
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all slots for admin dashboard
+ */
+function getAllSlots() {
+  try {
+    const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!slotsSheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = slotsSheet.getDataRange().getValues();
+    const slots = [];
+
+    // Skip header row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      let slotDate = row[SLOT_COLS.DATE];
+      if (typeof slotDate === 'string') {
+        slotDate = new Date(slotDate);
+      } else if (typeof slotDate === 'number') {
+        slotDate = new Date((slotDate - 25569) * 86400 * 1000);
+      }
+      const slot = {
+        slot_id: row[SLOT_COLS.SLOT_ID],
+        mentor_id: row[SLOT_COLS.MENTOR_ID],
+        mentor_name: row[SLOT_COLS.MENTOR_NAME],
+        date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+        start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+        end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
+        status: row[SLOT_COLS.STATUS],
+        booked_by: row[SLOT_COLS.BOOKED_BY],
+        student_id: row[SLOT_COLS.STUDENT_ID],
+        student_email: row[SLOT_COLS.STUDENT_EMAIL],
+        meeting_link: row[SLOT_COLS.MEETING_LINK],
+        feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR],
+        feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT],
+        timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED],
+        timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
+      };
+      slots.push(slot);
+    }
+
+    return {
+      success: true,
+      data: slots,
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get admin statistics for dashboard
+ */
+function getAdminStats() {
+  try {
+    const slotsSheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!slotsSheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = slotsSheet.getDataRange().getValues();
+    let totalBookings = 0;
+    let completed = 0;
+    let noShows = 0;
+    let feedbackSubmitted = 0;
+
+    // Skip header row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const status = row[SLOT_COLS.STATUS];
+      const feedbackMentor = row[SLOT_COLS.FEEDBACK_STATUS_MENTOR];
+      const feedbackStudent = row[SLOT_COLS.FEEDBACK_STATUS_STUDENT];
+
+      if (status === 'BOOKED') {
+        totalBookings++;
+        // Consider completed if both feedback statuses are DONE
+        if (feedbackMentor === 'DONE' && feedbackStudent === 'DONE') {
+          completed++;
+        }
+        // For now, no logic for no-shows as we don't track attendance
+        // Count feedback submitted if either mentor or student has submitted
+        if (feedbackMentor === 'DONE' || feedbackStudent === 'DONE') {
+          feedbackSubmitted++;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        totalBookings,
+        completed,
+        noShows,
+        feedbackSubmitted,
+      },
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all mentors
+ */
+function getAllMentors() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_MENTORS);
+    if (!sheet) {
+      return { success: false, error: 'Mentors sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const mentors = rows.map((row) => ({
+      mentor_id: row[MENTOR_COLS.MENTOR_ID],
+      name: row[MENTOR_COLS.MENTOR_NAME],
+      email: row[MENTOR_COLS.MENTOR_EMAIL],
+    }));
+
+    return { success: true, data: mentors };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all students
+ */
+function getAllStudents() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_STUDENTS);
+    if (!sheet) {
+      return { success: false, error: 'Students sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const students = rows.map((row) => ({
+      student_id: row[STUDENT_COLS.STUDENT_ID],
+      name: row[STUDENT_COLS.STUDENT_NAME],
+      email: row[STUDENT_COLS.STUDENT_EMAIL],
+    }));
+
+    return { success: true, data: students };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Enqueue a feedback job to be sent 1 hour after interview end time
+ * Called after successful booking and calendar event creation
+ * 
+ * @param {Object} metadata - Interview metadata
+ * @param {string} metadata.calendarEventId - Calendar event ID (or slot-based ID)
+ * @param {string} metadata.mentorEmail - Mentor email address
+ * @param {string} metadata.studentEmail - Student email address
+ * @param {string} metadata.mentorName - Mentor name
+ * @param {string} metadata.studentName - Student name
+ * @param {Date} metadata.interviewEndTime - Interview end time (Date object)
+ */
+function enqueueFeedbackJob(metadata) {
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    
+    // Load existing feedback queue
+    const queueJson = properties.getProperty('FEEDBACK_QUEUE') || '[]';
+    const queue = JSON.parse(queueJson);
+    
+    // Calculate sendAt time: interview end time + 1 hour (in epoch milliseconds)
+    const interviewEndTimeMs = metadata.interviewEndTime.getTime();
+    const sendAtMs = interviewEndTimeMs + (2 * 60 * 1000); // Add 2 minute
+    
+    // Don't enqueue if send time is in the past
+    if (sendAtMs <= Date.now()) {
+      return;
+    }
+    
+    // Generate unique job ID from calendar event ID or timestamp
+    const jobId = metadata.calendarEventId || 'job-' + Date.now() + '-' + Utilities.getUuid();
+    
+    // Create feedback job object
+    const job = {
+      id: jobId,
+      mentorEmail: metadata.mentorEmail,
+      studentEmail: metadata.studentEmail,
+      mentorName: metadata.mentorName,
+      studentName: metadata.studentName,
+      interviewEndTime: interviewEndTimeMs, // Epoch milliseconds
+      sendAt: sendAtMs, // Epoch milliseconds
+      sent: false, // Boolean flag
+      slotId: metadata.slotId // Add slot ID
+    };
+    
+    // Check if job already exists (prevent duplicates)
+    const existingJobIndex = queue.findIndex(function(j) {
+      return j.id === jobId && !j.sent;
+    });
+    
+    if (existingJobIndex >= 0) {
+      // Update existing job
+      queue[existingJobIndex] = job;
+    } else {
+      // Add new job to queue
+      queue.push(job);
+    }
+    
+    // Save updated queue back to PropertiesService
+    properties.setProperty('FEEDBACK_QUEUE', JSON.stringify(queue));
+    
+  } catch (error) {
+    // Don't throw - allow booking to succeed even if job enqueueing fails
+  }
+}
+
+/**
+ * Process feedback queue - called by recurring time-driven trigger (every 5 minutes)
+ * Loads queue from PropertiesService, sends emails for ready jobs, marks as sent
+ * Idempotent: safe to run multiple times, won't send duplicate emails
+ */
+function processFeedbackQueue() {
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    
+    // Load feedback queue from PropertiesService
+    const queueJson = properties.getProperty('FEEDBACK_QUEUE') || '[]';
+    let queue = JSON.parse(queueJson);
+    
+    if (queue.length === 0) {
+      return;
+    }
+    
+    const nowMs = Date.now(); // Current time in epoch milliseconds
+    let queueUpdated = false;
+    
+    // Iterate over all jobs in queue
+    queue.forEach(function(job) {
+      try {
+        // Feedback form links with pre-filled slot ID
+        const mentorFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSeu2i6W5XgFURonGkeLHZImNDorhtATIdZuAwLFsjeiEOgxGA/viewform?usp=pp_url&entry.210157484=' + encodeURIComponent(job.slotId);
+        const studentFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSfaLGW2d3a2gBC98YQrFqvWWj6q4229w-LboPbqf4Oires5ZQ/viewform?usp=pp_url&entry.686317709=' + encodeURIComponent(job.slotId);
+
+        // Skip if already sent
+        if (job.sent === true) {
+          return;
+        }
+        
+        // Skip if send time hasn't arrived yet
+        if (nowMs < job.sendAt) {
+          return;
+        }
+        
+        // Job is ready to send - send feedback emails
+        const interviewEndDate = new Date(job.interviewEndTime);
+        const interviewDateStr = Utilities.formatDate(interviewEndDate, Session.getScriptTimeZone(), 'EEEE, MMMM d, yyyy');
+        const interviewTimeStr = Utilities.formatDate(interviewEndDate, Session.getScriptTimeZone(), 'h:mm a');
+        
+        // Send email to mentor
+        try {
+          const mentorSubject = 'Feedback Request: Interview Session with ' + job.studentName;
+          const mentorBody = 'Hello ' + job.mentorName + ',\n\n' +
+            'Thank you for conducting the interview session with ' + job.studentName + '.\n\n' +
+            'Interview Date: ' + interviewDateStr + '\n' +
+            'Interview Time: ' + interviewTimeStr + '\n\n' +
+            'We would appreciate your feedback on the session. Please take a moment to share your thoughts:\n\n' +
+            mentorFeedbackLink + '\n\n' +
+            'Your feedback helps us improve the program and support our students better.\n\n' +
+            'Best regards,\n' +
+            'OpenGrad Team';
+          
+          MailApp.sendEmail(
+            job.mentorEmail,
+            mentorSubject,
+            mentorBody
+          );
+        } catch (mentorEmailError) {
+          // Continue processing other jobs even if one fails
+        }
+        
+        // Send email to student
+        try {
+          const studentSubject = 'Feedback Request: Interview Session with ' + job.mentorName;
+          const studentBody = 'Hello ' + job.studentName + ',\n\n' +
+            'Thank you for participating in the interview session with ' + job.mentorName + '.\n\n' +
+            'Interview Date: ' + interviewDateStr + '\n' +
+            'Interview Time: ' + interviewTimeStr + '\n\n' +
+            'We would love to hear about your experience. Please share your feedback:\n\n' +
+            studentFeedbackLink + '\n\n' +
+            'Your feedback helps us improve the program and match you with better opportunities.\n\n' +
+            'Best regards,\n' +
+            'OpenGrad Team';
+          
+          MailApp.sendEmail(
+            job.studentEmail,
+            studentSubject,
+            studentBody
+          );
+        } catch (studentEmailError) {
+          // Continue processing other jobs even if one fails
+        }
+        
+        // Mark job as sent (idempotent - safe to run multiple times)
+        job.sent = true;
+        queueUpdated = true;
+        
+      } catch (jobError) {
+        // Keep job in queue if processing failed - will retry on next trigger
+      }
+    });
+    
+    // Save updated queue back to PropertiesService (only if changes were made)
+    if (queueUpdated) {
+      properties.setProperty('FEEDBACK_QUEUE', JSON.stringify(queue));
+    }
+    
+  } catch (error) {
+    // Don't throw - allow trigger to continue running
+  }
+}
+
+
+

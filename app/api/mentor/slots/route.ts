@@ -3,9 +3,9 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { getMentorSlots } from '@/lib/apps-script';
 
 // GET /api/mentor/slots - Get slots for a mentor
-export async function GET(request: NextRequest) {
+export const GET = auth(async (request) => {
   try {
-    const session = await auth(request as any);
+    const session = request.auth;
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -36,5 +36,5 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 

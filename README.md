@@ -127,12 +127,13 @@ opengrad-scheduling/
 
 ### For Admins
 
-1. Sign in with admin account
-2. Access Admin Dashboard
-3. Monitor all bookings
-4. Search and filter bookings
-5. Export data to CSV
-6. View system metrics
+1. Navigate to `/admin` (redirects to signin if not authenticated)
+2. Enter admin credentials (configured in environment variables)
+3. Access Admin Dashboard at `/admin/dashboard`
+4. Monitor all bookings
+5. Search and filter bookings
+6. Export data to CSV
+7. View system metrics
 
 ## API Endpoints
 

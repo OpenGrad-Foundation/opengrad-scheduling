@@ -1,7 +1,7 @@
 'use client';
 
 import { format } from 'date-fns';
-import { Calendar, Clock, User, BookOpen } from 'lucide-react';
+import { Calendar, Clock, User, BookOpen, Video } from 'lucide-react';
 import type { Slot } from '@/types';
 
 interface SlotCardProps {
@@ -43,7 +43,7 @@ export default function SlotCard({
           : isPast
           ? 'border-gray-200 bg-gray-50 opacity-60'
           : slot.status === 'OPEN'
-          ? 'border-blue-200 bg-white hover:shadow-md'
+          ? 'border-teal-200 bg-white hover:shadow-md'
           : 'border-gray-200 bg-gray-50'
       }`}
     >
@@ -70,13 +70,26 @@ export default function SlotCard({
               <span className="text-gray-700">{mentorName || slot.mentor_name}</span>
             </div>
           )}
+          {slot.meeting_link && (slot.status === 'BOOKED' || isBooked) && (
+            <div className="flex items-center gap-2 mb-2">
+              <Video className="h-4 w-4 text-teal-600" />
+              <a
+                href={slot.meeting_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-teal-600 hover:text-teal-800 hover:underline text-sm font-medium break-all"
+              >
+                Join Google Meet
+              </a>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <span
               className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                 slot.status === 'OPEN'
                   ? 'bg-green-100 text-green-800'
                   : slot.status === 'BOOKED'
-                  ? 'bg-blue-100 text-blue-800'
+                  ? 'bg-teal-100 text-teal-800'
                   : 'bg-gray-100 text-gray-800'
               }`}
             >
@@ -88,7 +101,7 @@ export default function SlotCard({
           <button
             onClick={() => onBook(slot.slot_id)}
             disabled={isLoading}
-            className="ml-4 flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="ml-4 flex items-center gap-2 rounded-lg gradient-teal-green px-4 py-2 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-md"
           >
             <BookOpen className="h-4 w-4" />
             {isLoading ? 'Booking...' : 'Book Now'}

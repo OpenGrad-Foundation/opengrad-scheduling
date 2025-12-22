@@ -97,11 +97,13 @@ export const authOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }: any) {
-      // If using Google OAuth, assign mentor role
+      // If using Google OAuth, always allow sign-in and set role to mentor
       if (account?.provider === 'google') {
+        // Always allow Google sign-in - never block at login time
         user.role = 'mentor';
         // Store OAuth account info for later use
         (user as any).account = account;
+        return true;
       }
       // If using credentials, role is already set to 'student'
       return true;

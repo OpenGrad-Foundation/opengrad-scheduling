@@ -111,6 +111,21 @@ function doPost(e) {
       case 'submitFeedback':
         result = submitFeedback(parameters);
         break;
+      case 'getAllMentors':
+        result = getAllMentors();
+        break;
+      case 'getAllStudents':
+        result = getAllStudents();
+        break;
+      case 'getAllBookings':
+        result = getAllBookings();
+        break;
+      case 'getAllSlots':
+        result = getAllSlots();
+        break;
+      case 'getAdminStats':
+        result = getAdminStats();
+        break;
       default:
         return ContentService.createTextOutput(
           JSON.stringify({ success: false, error: 'Unknown function' })
@@ -808,6 +823,183 @@ function submitFeedback(parameters) {
         feedback_type: feedbackType,
         status: 'DONE',
         submitted_at: new Date().toISOString(),
+      },
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all mentors
+ */
+function getAllMentors() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_MENTORS);
+    if (!sheet) {
+      return { success: false, error: 'Mentors sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const mentors = rows.map((row) => ({
+      mentor_id: row[MENTOR_COLS.MENTOR_ID],
+      name: row[MENTOR_COLS.MENTOR_NAME],
+      email: row[MENTOR_COLS.MENTOR_EMAIL],
+    }));
+
+    return { success: true, data: mentors };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all students
+ */
+function getAllStudents() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_STUDENTS);
+    if (!sheet) {
+      return { success: false, error: 'Students sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const students = rows.map((row) => ({
+      student_id: row[STUDENT_COLS.STUDENT_ID],
+      name: row[STUDENT_COLS.STUDENT_NAME],
+      email: row[STUDENT_COLS.STUDENT_EMAIL],
+    }));
+
+    return { success: true, data: students };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all bookings for admin
+ */
+function getAllBookings() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!sheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const bookings = rows
+      .filter((row) => row[SLOT_COLS.STATUS] === 'BOOKED')
+      .map((row) => ({
+        slot_id: row[SLOT_COLS.SLOT_ID],
+        mentor_id: row[SLOT_COLS.MENTOR_ID],
+        mentor_name: row[SLOT_COLS.MENTOR_NAME],
+        student_id: row[SLOT_COLS.STUDENT_ID],
+        student_name: row[SLOT_COLS.BOOKED_BY], // Assuming BOOKED_BY is student name
+        student_email: row[SLOT_COLS.STUDENT_EMAIL],
+        date: row[SLOT_COLS.DATE],
+        start_time: row[SLOT_COLS.START_TIME],
+        end_time: row[SLOT_COLS.END_TIME],
+        meeting_link: row[SLOT_COLS.MEETING_LINK],
+        feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR],
+        feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT],
+        timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
+      }));
+
+    return { success: true, data: bookings };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all slots for admin
+ */
+function getAllSlots() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!sheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const slots = rows.map((row) => ({
+      slot_id: row[SLOT_COLS.SLOT_ID],
+      mentor_id: row[SLOT_COLS.MENTOR_ID],
+      mentor_name: row[SLOT_COLS.MENTOR_NAME],
+      date: row[SLOT_COLS.DATE],
+      start_time: row[SLOT_COLS.START_TIME],
+      end_time: row[SLOT_COLS.END_TIME],
+      status: row[SLOT_COLS.STATUS],
+      booked_by: row[SLOT_COLS.BOOKED_BY],
+      student_id: row[SLOT_COLS.STUDENT_ID],
+      student_email: row[SLOT_COLS.STUDENT_EMAIL],
+      meeting_link: row[SLOT_COLS.MEETING_LINK],
+      feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR],
+      feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT],
+      timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED],
+      timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
+    }));
+
+    return { success: true, data: slots };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get admin statistics
+ */
+function getAdminStats() {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_SLOTS);
+    if (!sheet) {
+      return { success: false, error: 'Slots sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const rows = data.slice(1);
+
+    let totalBookings = 0;
+    let completed = 0;
+    let noShows = 0;
+    let feedbackSubmitted = 0;
+
+    rows.forEach((row) => {
+      if (row[SLOT_COLS.STATUS] === 'BOOKED') {
+        totalBookings++;
+        if (row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] === 'DONE' && row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] === 'DONE') {
+          completed++;
+        }
+        // Assuming no-shows are booked slots in the past without feedback
+        const slotDate = new Date(row[SLOT_COLS.DATE]);
+        if (slotDate < new Date() && row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] !== 'DONE') {
+          noShows++;
+        }
+      }
+      if (row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] === 'DONE' || row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] === 'DONE') {
+        feedbackSubmitted++;
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        totalBookings,
+        completed,
+        noShows,
+        feedbackSubmitted,
       },
     };
   } catch (error) {
