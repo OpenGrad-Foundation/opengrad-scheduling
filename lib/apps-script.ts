@@ -204,3 +204,21 @@ export async function getAllStudents(): Promise<AppsScriptResponse<{
   return callAppsScript('getAllStudents');
 }
 
+/**
+ * Validate student credentials (roll number and email must match)
+ */
+export async function validateStudent(
+  rollNumber: string,
+  email: string
+): Promise<AppsScriptResponse<{
+  valid: boolean;
+  student?: {
+    student_id: string;
+    name: string;
+    email: string;
+  };
+  error?: string;
+}>> {
+  return callAppsScript('validateStudent', { rollNumber, email });
+}
+

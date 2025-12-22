@@ -187,6 +187,9 @@ function doPost(e) {
         case 'getAllStudents':
           result = getAllStudents();
           break;
+        case 'validateStudent':
+          result = validateStudent(parameters.rollNumber, parameters.email);
+          break;
         case 'getAllBookings':
           result = getAllBookings();
           break;
@@ -1355,6 +1358,63 @@ function getAllStudents() {
     }));
 
     return { success: true, data: students };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Validate student credentials (roll number and email must match)
+ */
+function validateStudent(rollNumber, email) {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(SHEET_STUDENTS);
+    if (!sheet) {
+      return { success: false, error: 'Students sheet not found' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const rows = data.slice(1); // Skip header row
+
+    // Normalize inputs for comparison
+    const normalizedRollNumber = String(rollNumber || '').trim().toUpperCase();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    // Find student with matching roll number
+    for (let i = 0; i < rows.length; i++) {
+      const studentId = String(rows[i][STUDENT_COLS.STUDENT_ID] || '').trim().toUpperCase();
+      const studentEmail = String(rows[i][STUDENT_COLS.STUDENT_EMAIL] || '').trim().toLowerCase();
+
+      if (studentId === normalizedRollNumber) {
+        // Found student with matching roll number, now check email
+        if (studentEmail === normalizedEmail) {
+          // Both roll number and email match
+          return {
+            success: true,
+            valid: true,
+            student: {
+              student_id: rows[i][STUDENT_COLS.STUDENT_ID],
+              name: rows[i][STUDENT_COLS.STUDENT_NAME],
+              email: rows[i][STUDENT_COLS.STUDENT_EMAIL],
+            },
+          };
+        } else {
+          // Roll number exists but email doesn't match
+          return {
+            success: true,
+            valid: false,
+            error: 'Email does not match the roll number',
+          };
+        }
+      }
+    }
+
+    // Roll number not found
+    return {
+      success: true,
+      valid: false,
+      error: 'Roll number not found',
+    };
   } catch (error) {
     return { success: false, error: error.toString() };
   }
