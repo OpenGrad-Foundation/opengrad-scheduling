@@ -10,7 +10,7 @@
  */
 
 // Configuration - Update these with your Sheet IDs
-const SHEET_ID = '1Q2wtN06zk3LbY8lZ9YahpVpe8Y_xGFUo7fuewuai_Ik'; // Replace with your Google Sheet ID
+const SHEET_ID = '15of0yJZQ3GFfiSLghIoCjYFfD-na-CoLt1VyLEWEaBM'; // Replace with your Google Sheet ID
 const SPREADSHEET = SpreadsheetApp.openById(SHEET_ID);
 
 // Sheet names
@@ -1450,8 +1450,8 @@ function processFeedbackQueue() {
     queue.forEach(function(job) {
       try {
         // Feedback form links with pre-filled slot ID
-        const mentorFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSeu2i6W5XgFURonGkeLHZImNDorhtATIdZuAwLFsjeiEOgxGA/viewform?usp=pp_url&entry.210157484=' + encodeURIComponent(job.slotId);
-        const studentFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSfaLGW2d3a2gBC98YQrFqvWWj6q4229w-LboPbqf4Oires5ZQ/viewform?usp=pp_url&entry.686317709=' + encodeURIComponent(job.slotId);
+        const mentorFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSdQgC0xhB1UYU21odRYPeVcEyn7vu6hpS8xi-IN-gHguohdVQ/viewform?usp=pp_url&entry.1959723348=SLOT001' + encodeURIComponent(job.slotId);
+        const studentFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSd7wWTlkPJt1jS2QeL8EhoEKx7wV6Nywp6cTDhDBuws9BNGWA/viewform?usp=pp_url&entry.955316583=SLOT001' + encodeURIComponent(job.slotId);
 
         // Skip if already sent
         if (job.sent === true) {
