@@ -111,6 +111,8 @@ export default function MentorDashboard() {
         date: formData.startDate, // YYYY-MM-DD format
         start: formData.startTime, // HH:MM format
         end: endTime, // HH:MM format
+        topic: formData.topic,
+        notes: formData.notes,
       };
 
       const response = await fetch('/api/slots', {

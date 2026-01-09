@@ -60,18 +60,20 @@ This is where all the mapping happens.
 | Start_Time | 18:00 | Input |
 | End_Time | 18:30 | Input |
 | Status | OPEN / BOOKED | UI display + booking logic |
-| Booked_By | STU043 | student_id reference |
+| Booked_By | Aisha Kumar | Student name for reference |
 | Student_ID | (auto) | For meeting invite |
 | Student_Email | (auto) | For meeting invite |
 | Meeting_Link | auto-generated | Zoom/Meet link |
 | Feedback_Status_Mentor | PENDING / DONE | After meeting |
 | Feedback_Status_Student | PENDING / DONE | After meeting |
+| Interview_Topic | Technical Interview | Topic/subject for the interview |
+| Notes | Focus on DSA | Optional notes by mentor |
 | Timestamp_Created | auto | Logs |
 | Timestamp_Booked | auto | For analysis |
 
 **Header Row:**
 ```
-Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Timestamp_Created | Timestamp_Booked
+Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Interview_Topic | Notes | Timestamp_Created | Timestamp_Booked
 ```
 
 ### Optional: Auto-fill Mentor_Name with Formula
@@ -120,7 +122,7 @@ Student clicks Book → frontend sends:
 
 Apps Script updates the row:
 - `status` → BOOKED
-- `booked_by` → STU077
+- `booked_by` → Aisha Kumar
 - `student_id` → STU077
 - `student_email` → (fetched from Students sheet)
 - `timestamp_booked` → now()

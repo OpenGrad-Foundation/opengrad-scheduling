@@ -19,7 +19,7 @@ const SHEET_STUDENTS = 'Students';
 const SHEET_SLOTS = 'Slots';
 
 // Column indices for Slots sheet (0-based)
-// Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Timestamp_Created | Timestamp_Booked
+// Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Interview_Topic | Notes | Timestamp_Created | Timestamp_Booked
 const SLOT_COLS = {
   SLOT_ID: 0,              // A
   MENTOR_ID: 1,            // B
@@ -28,14 +28,16 @@ const SLOT_COLS = {
   START_TIME: 4,           // E
   END_TIME: 5,             // F
   STATUS: 6,               // G (OPEN / BOOKED)
-  BOOKED_BY: 7,            // H (Student_ID)
+  BOOKED_BY: 7,            // H (Student_Name)
   STUDENT_ID: 8,           // I (auto-filled)
   STUDENT_EMAIL: 9,        // J (auto-filled)
   MEETING_LINK: 10,        // K (auto-generated)
   FEEDBACK_STATUS_MENTOR: 11,  // L (PENDING / DONE)
   FEEDBACK_STATUS_STUDENT: 12,  // M (PENDING / DONE)
-  TIMESTAMP_CREATED: 13,    // N
-  TIMESTAMP_BOOKED: 14     // O
+  INTERVIEW_TOPIC: 13,      // N
+  NOTES: 14,                // O
+  TIMESTAMP_CREATED: 15,    // P
+  TIMESTAMP_BOOKED: 16      // Q
 };
 
 // Column indices for Students sheet
@@ -287,6 +289,8 @@ function getOpenSlots() {
           start_time: formatTimeValue(startTimeVal),
           end_time: formatTimeValue(endTimeVal),
           status: row[SLOT_COLS.STATUS],
+          topic: row[SLOT_COLS.INTERVIEW_TOPIC] || '',
+          notes: row[SLOT_COLS.NOTES] || '',
           meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
         };
       });
@@ -454,8 +458,8 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
     // Update status to BOOKED
     slotsSheet.getRange(slotRow, SLOT_COLS.STATUS + 1).setValue('BOOKED');
     
-    // Update Booked_By (Student_ID)
-    slotsSheet.getRange(slotRow, SLOT_COLS.BOOKED_BY + 1).setValue(studentId);
+    // Update Booked_By (Student_Name)
+    slotsSheet.getRange(slotRow, SLOT_COLS.BOOKED_BY + 1).setValue(studentName);
     
     // Update Student_ID
     slotsSheet.getRange(slotRow, SLOT_COLS.STUDENT_ID + 1).setValue(studentId);
@@ -517,6 +521,7 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
         mentor_email: mentorEmail,
         meet_link: meetLink,
         calendar_event_id: calendarEventId,
+        booked_by: studentName,
         booked_at: now.toISOString(),
         status: 'BOOKED',
       },
@@ -647,6 +652,8 @@ function getMentorSlots(mentorId) {
           meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
           feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
           feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
+          topic: row[SLOT_COLS.INTERVIEW_TOPIC] || '',
+          notes: row[SLOT_COLS.NOTES] || '',
           timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED] || '',
           timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
         };
@@ -706,7 +713,7 @@ function createSlot(parameters) {
     }
 
     // Create slot row
-    // Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Timestamp_Created | Timestamp_Booked
+    // Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Interview_Topic | Notes | Timestamp_Created | Timestamp_Booked
     const slotRow = [
       slotId,                                    // Slot_ID
       mentorId,                                  // Mentor_ID (or Mentor_Email)
@@ -721,6 +728,8 @@ function createSlot(parameters) {
       '',                                        // Meeting_Link
       'PENDING',                                 // Feedback_Status_Mentor
       'PENDING',                                 // Feedback_Status_Student
+      parameters.topic || '',                    // Interview_Topic
+      parameters.notes || '',                    // Notes
       now.toISOString(),                         // Timestamp_Created
       ''                                         // Timestamp_Booked
     ];
@@ -737,6 +746,8 @@ function createSlot(parameters) {
         date: parameters.date,
         start_time: parameters.start,
         end_time: parameters.end,
+        topic: parameters.topic || '',
+        notes: parameters.notes || '',
         status: 'OPEN',
         created_at: now.toISOString(),
       },
@@ -808,6 +819,8 @@ function getStudentBookings(studentId) {
         meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
         feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
         feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
+        topic: row[SLOT_COLS.INTERVIEW_TOPIC] || '',
+        notes: row[SLOT_COLS.NOTES] || '',
         timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
       });
       });
@@ -1242,6 +1255,8 @@ function getAllSlots() {
         meeting_link: row[SLOT_COLS.MEETING_LINK],
         feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR],
         feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT],
+        topic: row[SLOT_COLS.INTERVIEW_TOPIC] || '',
+        notes: row[SLOT_COLS.NOTES] || '',
         timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED],
         timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
       };
@@ -1450,8 +1465,8 @@ function processFeedbackQueue() {
     queue.forEach(function(job) {
       try {
         // Feedback form links with pre-filled slot ID
-        const mentorFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSdQgC0xhB1UYU21odRYPeVcEyn7vu6hpS8xi-IN-gHguohdVQ/viewform?usp=pp_url&entry.1959723348=SLOT001' + encodeURIComponent(job.slotId);
-        const studentFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSd7wWTlkPJt1jS2QeL8EhoEKx7wV6Nywp6cTDhDBuws9BNGWA/viewform?usp=pp_url&entry.955316583=SLOT001' + encodeURIComponent(job.slotId);
+        const mentorFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSdQgC0xhB1UYU21odRYPeVcEyn7vu6hpS8xi-IN-gHguohdVQ/viewform?usp=pp_url&entry.1959723348=' + encodeURIComponent(job.slotId);
+        const studentFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSd7wWTlkPJt1jS2QeL8EhoEKx7wV6Nywp6cTDhDBuws9BNGWA/viewform?usp=pp_url&entry.955316583=' + encodeURIComponent(job.slotId);
 
         // Skip if already sent
         if (job.sent === true) {

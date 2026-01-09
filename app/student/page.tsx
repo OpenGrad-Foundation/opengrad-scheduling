@@ -68,6 +68,8 @@ export default function StudentDashboard() {
           meeting_link: booking.meeting_link || '',
           feedback_status_mentor: booking.feedback_status_mentor || 'PENDING',
           feedback_status_student: booking.feedback_status_student || 'PENDING',
+          topic: booking.topic || '',
+          notes: booking.notes || '',
           timestamp_booked: booking.timestamp_booked || '',
         }));
         setBookings(bookingSlots);

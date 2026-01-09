@@ -70,6 +70,17 @@ export default function SlotCard({
               <span className="text-gray-700">{mentorName || slot.mentor_name}</span>
             </div>
           )}
+          {slot.topic && (
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="h-4 w-4 text-gray-500" />
+              <span className="text-gray-700 text-sm"><strong>Topic:</strong> {slot.topic}</span>
+            </div>
+          )}
+          {slot.notes && (
+            <div className="mb-2">
+              <p className="text-gray-600 text-sm"><strong>Notes:</strong> {slot.notes}</p>
+            </div>
+          )}
           {slot.meeting_link && (slot.status === 'BOOKED' || isBooked) && (
             <div className="flex items-center gap-2 mb-2">
               <Video className="h-4 w-4 text-teal-600" />
