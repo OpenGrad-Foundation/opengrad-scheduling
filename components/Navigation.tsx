@@ -63,17 +63,31 @@ export default function Navigation() {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center gap-3 text-xl font-bold">
-              <div className="relative w-10 h-10">
-                <Image
-                  src="/opengrad-logo.png"
-                  alt="OpenGrad Logo"
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                  priority
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative w-10 h-10">
+                  <Image
+                    src="/Opengrad-logo-2.png"
+                    alt="OpenGrad Logo"
+                    width={40}
+                    height={40}
+                    className="object-contain"
+                    priority
+                  />
+                </div>
+                <span className="gradient-teal-green-text font-semibold">OpenGrad</span>
+                <span className="text-gray-400 text-sm font-normal">x</span>
+                <div className="relative w-24 h-24">
+                  <Image
+                    src="/Enphase-logo.png"
+                    alt="Partner Logo"
+                    width={96}
+                    height={96}
+                    className="object-contain"
+                    priority
+                  />
+                </div>
               </div>
-              <span className="gradient-teal-green-text font-semibold">OpenGrad</span>
+              
             </Link>
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-6">

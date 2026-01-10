@@ -35,15 +35,28 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-16">
           <div className="flex justify-center mb-6">
-            <div className="relative w-24 h-24">
-              <Image
-                src="/opengrad-logo.png"
-                alt="OpenGrad Logo"
-                width={96}
-                height={96}
-                className="object-contain"
-                priority
-              />
+            <div className="flex items-center gap-6">
+              <div className="relative w-24 h-24">
+                <Image
+                  src="/Opengrad-logo-2.png"
+                  alt="OpenGrad Logo"
+                  width={96}
+                  height={96}
+                  className="object-contain"
+                  priority
+                />
+              </div>
+              <span className="text-gray-300 text-3xl font-light">x</span>
+              <div className="relative w-48 h-48">
+                <Image
+                  src="/Enphase-logo.png"
+                  alt="Partner Logo"
+                  width={192}
+                  height={192}
+                  className="object-contain"
+                  priority
+                />
+              </div>
             </div>
           </div>
           <h1 className="text-5xl font-bold mb-4">

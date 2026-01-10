@@ -42,12 +42,14 @@ export interface Slot {
   start_time: string; // Time string (HH:MM or HH:MM AM/PM)
   end_time: string; // Time string (HH:MM or HH:MM AM/PM)
   status: 'OPEN' | 'BOOKED' | 'CANCELLED';
-  booked_by?: string; // Student_ID
+  booked_by?: string; // Student_Name
   student_id?: string;
   student_email?: string;
   meeting_link?: string;
   feedback_status_mentor?: 'PENDING' | 'DONE';
   feedback_status_student?: 'PENDING' | 'DONE';
+  topic?: string;
+  notes?: string;
   timestamp_created?: string;
   timestamp_booked?: string;
 }
@@ -90,5 +92,7 @@ export interface SlotCreationRequest {
   date: string; // Date string (YYYY-MM-DD)
   start: string; // Time string (HH:MM)
   end: string; // Time string (HH:MM)
+  topic?: string;
+  notes?: string;
 }
 

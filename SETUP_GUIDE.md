@@ -173,7 +173,7 @@ Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Book
 | Start_Time | 18:00 | Start time (HH:MM format) | ❌ No (input by mentor) |
 | End_Time | 18:30 | End time (HH:MM format) | ❌ No (input by mentor) |
 | Status | OPEN / BOOKED | UI display + booking logic | ✅ Yes (changes to BOOKED) |
-| Booked_By | STU043 | Student_ID reference | ✅ Yes (when booked) |
+| Booked_By | Aisha Kumar | Student name for reference | ✅ Yes (when booked) |
 | Student_ID | STU043 | For meeting invite | ✅ Yes (when booked) |
 | Student_Email | aish@example.com | For meeting invite | ✅ Yes (when booked) |
 | Meeting_Link | https://meet.google.com/... | Google Meet link | ✅ Yes (when booked) |
@@ -206,7 +206,7 @@ Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Book
 
 5. **Auto-filled Fields:** When a student books a slot, the Apps Script automatically fills:
    - `Status` → `BOOKED`
-   - `Booked_By` → Student_ID
+   - `Booked_By` → Student_Name
    - `Student_ID` → Student_ID
    - `Student_Email` → Fetched from Students sheet
    - `Meeting_Link` → Generated Google Meet link
