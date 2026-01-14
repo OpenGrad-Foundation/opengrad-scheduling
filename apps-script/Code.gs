@@ -11,6 +11,8 @@
 
 // Configuration - Update these with your Sheet IDs
 const SHEET_ID = '15of0yJZQ3GFfiSLghIoCjYFfD-na-CoLt1VyLEWEaBM'; // Replace with your Google Sheet ID
+//DEV TEST
+//const SHEET_ID = '1Q2wtN06zk3LbY8lZ9YahpVpe8Y_xGFUo7fuewuai_Ik'; // Replace with your Test Google Sheet ID (if any)
 const SPREADSHEET = SpreadsheetApp.openById(SHEET_ID);
 
 // Sheet names
@@ -19,25 +21,26 @@ const SHEET_STUDENTS = 'Students';
 const SHEET_SLOTS = 'Slots';
 
 // Column indices for Slots sheet (0-based)
-// Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Interview_Topic | Notes | Timestamp_Created | Timestamp_Booked
+// Slot_ID | Mentor_ID | Mentor_Name | Date | End_Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Interview_Topic | Notes | Timestamp_Created | Timestamp_Booked
 const SLOT_COLS = {
   SLOT_ID: 0,              // A
   MENTOR_ID: 1,            // B
   MENTOR_NAME: 2,          // C (auto-filled via formula)
-  DATE: 3,                 // D
-  START_TIME: 4,           // E
-  END_TIME: 5,             // F
-  STATUS: 6,               // G (OPEN / BOOKED)
-  BOOKED_BY: 7,            // H (Student_Name)
-  STUDENT_ID: 8,           // I (auto-filled)
-  STUDENT_EMAIL: 9,        // J (auto-filled)
-  MEETING_LINK: 10,        // K (auto-generated)
-  FEEDBACK_STATUS_MENTOR: 11,  // L (PENDING / DONE)
-  FEEDBACK_STATUS_STUDENT: 12,  // M (PENDING / DONE)
-  INTERVIEW_TOPIC: 13,      // N
-  NOTES: 14,                // O
-  TIMESTAMP_CREATED: 15,    // P
-  TIMESTAMP_BOOKED: 16      // Q
+  DATE: 3,                 // D (Start date)
+  END_DATE: 4,             // E (Optional end date for midnight-spanning slots)
+  START_TIME: 5,           // F
+  END_TIME: 6,             // G
+  STATUS: 7,               // H (OPEN / BOOKED)
+  BOOKED_BY: 8,            // I (Student_Name)
+  STUDENT_ID: 9,           // J (auto-filled)
+  STUDENT_EMAIL: 10,       // K (auto-filled)
+  MEETING_LINK: 11,        // L (auto-generated)
+  FEEDBACK_STATUS_MENTOR: 12,  // M (PENDING / DONE)
+  FEEDBACK_STATUS_STUDENT: 13,  // N (PENDING / DONE)
+  INTERVIEW_TOPIC: 14,      // O
+  NOTES: 15,                // P
+  TIMESTAMP_CREATED: 16,    // Q
+  TIMESTAMP_BOOKED: 17      // R
 };
 
 // Column indices for Students sheet
@@ -272,16 +275,54 @@ function getOpenSlots() {
       })
       .map((row) => {
         let slotDate = row[SLOT_COLS.DATE];
+        let endDate = row[SLOT_COLS.END_DATE];
+        
         if (typeof slotDate === 'string') {
           slotDate = new Date(slotDate);
         } else if (typeof slotDate === 'number') {
           slotDate = new Date((slotDate - 25569) * 86400 * 1000);
         }
         
+        // Handle optional end date
+        let endDateStr = '';
+        if (endDate && endDate !== '') {
+          if (typeof endDate === 'string') {
+            endDateStr = endDate;
+          } else if (typeof endDate === 'number') {
+            const endDateObj = new Date((endDate - 25569) * 86400 * 1000);
+            endDateStr = Utilities.formatDate(endDateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          } else if (endDate instanceof Date) {
+            endDateStr = Utilities.formatDate(endDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          }
+        } else {
+          // Auto-detect midnight-spanning slots that weren't stored with end_date
+          const startTime = row[SLOT_COLS.START_TIME];
+          const endTime = row[SLOT_COLS.END_TIME];
+          if (startTime && endTime) {
+            // Format times first using formatTimeValue to ensure consistent format
+            const startTimeStr = formatTimeValue(startTime);
+            const endTimeStr = formatTimeValue(endTime);
+            
+            if (startTimeStr && endTimeStr) {
+              const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
+              const [endHours, endMinutes] = endTimeStr.split(':').map(Number);
+              const startTotal = startHours * 60 + startMinutes;
+              const endTotal = endHours * 60 + endMinutes;
+              const spansMidnight = endTotal < startTotal;
+              
+              if (spansMidnight) {
+                const nextDay = new Date(slotDate);
+                nextDay.setDate(slotDate.getDate() + 1);
+                endDateStr = Utilities.formatDate(nextDay, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+              }
+            }
+          }
+        }
+        
         const startTimeVal = row[SLOT_COLS.START_TIME];
         const endTimeVal = row[SLOT_COLS.END_TIME];
         
-        return {
+        const slotObj = {
           slot_id: row[SLOT_COLS.SLOT_ID],
           mentor_id: row[SLOT_COLS.MENTOR_ID],
           mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
@@ -293,6 +334,13 @@ function getOpenSlots() {
           notes: row[SLOT_COLS.NOTES] || '',
           meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
         };
+        
+        // Add end_date only if it's different from start date
+        if (endDateStr) {
+          slotObj.end_date = endDateStr;
+        }
+        
+        return slotObj;
       });
 
     return { success: true, data: openSlots };
@@ -382,18 +430,30 @@ function bookSlot(slotId, studentId, studentName, studentEmail) {
 
     // Create date-time objects for calendar
     let slotDate = slotData[SLOT_COLS.DATE];
+    let endDate = slotData[SLOT_COLS.END_DATE];
+    
     if (typeof slotDate === 'string') {
       slotDate = new Date(slotDate);
     } else if (typeof slotDate === 'number') {
       slotDate = new Date((slotDate - 25569) * 86400 * 1000);
     }
+    
+    // Handle optional end date for multi-day slots
+    if (endDate && endDate !== '') {
+      if (typeof endDate === 'string') {
+        endDate = new Date(endDate);
+      } else if (typeof endDate === 'number') {
+        endDate = new Date((endDate - 25569) * 86400 * 1000);
+      }
+    }
+    
     // If it's already a Date object, use it as is
     const startTimeStr = slotData[SLOT_COLS.START_TIME];
     const endTimeStr = slotData[SLOT_COLS.END_TIME];
     
     // Parse time strings (assuming format like "18:00" or "6:00 PM")
     const startTime = parseDateTime(slotDate, startTimeStr);
-    const endTime = parseDateTime(slotDate, endTimeStr);
+    const endTime = parseDateTime(slotDate, endTimeStr, endDate);
 
     let calendarEventId = '';
     let meetLink = '';
@@ -562,8 +622,12 @@ function formatTimeValue(timeValue) {
 
 /**
  * Parse date and time string into Date object
+ * @param {Date|string} date - The base date (YYYY-MM-DD or Date object)
+ * @param {string|number|Date} timeStr - The time string (HH:MM, HH:MM AM/PM, or time number)
+ * @param {Date|string} endDate - Optional end date for multi-day slots (YYYY-MM-DD or Date object)
+ * @return {Date} Parsed DateTime
  */
-function parseDateTime(date, timeStr) {
+function parseDateTime(date, timeStr, endDate) {
   // Handle various time formats: "18:00", "6:00 PM", "18:00:00"
   let hours = 0;
   let minutes = 0;
@@ -601,8 +665,9 @@ function parseDateTime(date, timeStr) {
     minutes = Math.floor((timeStr * 24 * 60) % 60);
   }
   
-  // Create new date object from the base date
-  const result = new Date(date);
+  // Use endDate if provided (for end times in multi-day slots), otherwise use base date
+  const baseDate = endDate || date;
+  const result = new Date(baseDate);
   
   // Validate result date
   if (isNaN(result.getTime())) {
@@ -633,12 +698,68 @@ function getMentorSlots(mentorId) {
       .filter((row) => row[SLOT_COLS.MENTOR_ID] === mentorId)
       .map((row) => {
         let slotDate = row[SLOT_COLS.DATE];
+        let endDate = row[SLOT_COLS.END_DATE];
+        
+        // Debug logging - MORE DETAILED
+        Logger.log('Processing row: slot_id=' + row[SLOT_COLS.SLOT_ID]);
+        Logger.log('  endDate value: ' + endDate + ', type: ' + typeof endDate + ', isEmpty: ' + (endDate === '' || endDate === null || endDate === undefined));
+        Logger.log('  start_time=' + row[SLOT_COLS.START_TIME] + ', end_time=' + row[SLOT_COLS.END_TIME]);
+        
         if (typeof slotDate === 'string') {
           slotDate = new Date(slotDate);
         } else if (typeof slotDate === 'number') {
           slotDate = new Date((slotDate - 25569) * 86400 * 1000);
         }
-        return {
+        
+        // Handle optional end date
+        let endDateStr = '';
+        Logger.log('DEBUG getMentorSlots - Checking endDate for ' + row[SLOT_COLS.SLOT_ID] + ': value=' + endDate + ', type=' + typeof endDate);
+        if (endDate && endDate !== '') {
+          Logger.log('  endDate HAS VALUE - type is: ' + typeof endDate);
+          if (typeof endDate === 'string') {
+            endDateStr = endDate;
+            Logger.log('  → Using string endDate: ' + endDateStr);
+          } else if (typeof endDate === 'number') {
+            const endDateObj = new Date((endDate - 25569) * 86400 * 1000);
+            endDateStr = Utilities.formatDate(endDateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            Logger.log('  → Converted number to endDateStr: ' + endDateStr);
+          } else if (endDate instanceof Date) {
+            endDateStr = Utilities.formatDate(endDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            Logger.log('  → Converted Date object to endDateStr: ' + endDateStr);
+          }
+        } else {
+          Logger.log('  endDate is EMPTY - trying midnight detection...');
+          // Auto-detect midnight-spanning slots that weren't stored with end_date
+          const startTime = row[SLOT_COLS.START_TIME];
+          const endTime = row[SLOT_COLS.END_TIME];
+          if (startTime && endTime) {
+            // Format times first using formatTimeValue to ensure consistent format
+            const startTimeStr = formatTimeValue(startTime);
+            const endTimeStr = formatTimeValue(endTime);
+            
+            if (startTimeStr && endTimeStr) {
+              const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
+              const [endHours, endMinutes] = endTimeStr.split(':').map(Number);
+              const startTotal = startHours * 60 + startMinutes;
+              const endTotal = endHours * 60 + endMinutes;
+              const spansMidnight = endTotal < startTotal;
+              
+              if (spansMidnight) {
+                const nextDay = new Date(slotDate);
+                nextDay.setDate(slotDate.getDate() + 1);
+                endDateStr = Utilities.formatDate(nextDay, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                // Debug: log midnight slots
+                Logger.log('Midnight slot detected: ' + startTimeStr + ' to ' + endTimeStr + ' -> end_date: ' + endDateStr);
+              } else {
+                Logger.log('Same-day slot (no midnight span): ' + startTimeStr + ' to ' + endTimeStr);
+              }
+            }
+          }
+        }
+        
+        Logger.log('FINAL endDateStr for ' + row[SLOT_COLS.SLOT_ID] + ': "' + endDateStr + '"');
+        
+        const slotObj = {
           slot_id: row[SLOT_COLS.SLOT_ID],
           mentor_id: row[SLOT_COLS.MENTOR_ID],
           mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
@@ -657,8 +778,20 @@ function getMentorSlots(mentorId) {
           timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED] || '',
           timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
         };
+        
+        // Add end_date only if it's different from start date
+        if (endDateStr) {
+          slotObj.end_date = endDateStr;
+          Logger.log('Added end_date to slot ' + slotObj.slot_id + ': ' + endDateStr);
+        } else if (endDateStr) {
+          Logger.log('Skipped end_date for slot ' + slotObj.slot_id + ' (same as start date)');
+        }
+        
+        return slotObj;
       });
 
+    Logger.log('Returning ' + mentorSlots.length + ' slots for mentor ' + mentorId);
+    Logger.log('Mentor slots: ' + JSON.stringify(mentorSlots));
     return { success: true, data: mentorSlots };
   } catch (error) {
     return { success: false, error: error.toString() };
@@ -712,45 +845,97 @@ function createSlot(parameters) {
       mentorId = parameters.mentorEmail;
     }
 
+    // Parse times to detect midnight-spanning slots
+    const [startHours, startMinutes] = parameters.start.split(':').map(Number);
+    const [endHours, endMinutes] = parameters.end.split(':').map(Number);
+    
+    // Validate time values (hours 0-23, minutes 0-59)
+    if (startHours < 0 || startHours > 23 || startMinutes < 0 || startMinutes > 59) {
+      return { success: false, error: `Invalid start time: ${parameters.start}. Hours must be 00-23, minutes must be 00-59` };
+    }
+    if (endHours < 0 || endHours > 23 || endMinutes < 0 || endMinutes > 59) {
+      return { success: false, error: `Invalid end time: ${parameters.end}. Hours must be 00-23, minutes must be 00-59` };
+    }
+    
+    const startTotal = startHours * 60 + startMinutes;
+    const endTotal = endHours * 60 + endMinutes;
+    const spansMidnight = endTotal < startTotal;
+
+    // Determine end date
+    let endDate = null;
+    if (parameters.end_date) {
+      // Explicit end_date provided
+      endDate = parameters.end_date;
+      console.log('Using explicit end_date:', endDate);
+    } else if (spansMidnight) {
+      // Auto-detect midnight-spanning slot
+      console.log('Auto-detecting midnight-spanning slot');
+      const startDate = new Date(parameters.date + 'T00:00:00');
+      console.log('startDate:', startDate);
+      const nextDay = new Date(startDate);
+      nextDay.setDate(startDate.getDate() + 1);
+      console.log('nextDay:', nextDay);
+      endDate = nextDay; // Store as Date object like the Date column
+      console.log('Calculated endDate:', endDate);
+    } else {
+      console.log('Same-day slot, no end_date needed');
+    }
+
     // Create slot row
-    // Slot_ID | Mentor_ID | Mentor_Name | Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Interview_Topic | Notes | Timestamp_Created | Timestamp_Booked
+    // Slot_ID | Mentor_ID | Mentor_Name | Date | End_Date | Start_Time | End_Time | Status | Booked_By | Student_ID | Student_Email | Meeting_Link | Feedback_Status_Mentor | Feedback_Status_Student | Interview_Topic | Notes | Timestamp_Created | Timestamp_Booked
     const slotRow = [
-      slotId,                                    // Slot_ID
-      mentorId,                                  // Mentor_ID (or Mentor_Email)
-      parameters.mentorName,                     // Mentor_Name
-      new Date(parameters.date + 'T00:00:00'),   // Date
-      parameters.start,                          // Start_Time
-      parameters.end,                            // End_Time
-      'OPEN',                                    // Status
-      '',                                        // Booked_By
-      '',                                        // Student_ID
-      '',                                        // Student_Email
-      '',                                        // Meeting_Link
-      'PENDING',                                 // Feedback_Status_Mentor
-      'PENDING',                                 // Feedback_Status_Student
-      parameters.topic || '',                    // Interview_Topic
-      parameters.notes || '',                    // Notes
-      now.toISOString(),                         // Timestamp_Created
-      ''                                         // Timestamp_Booked
+      slotId,                                    // A: Slot_ID
+      mentorId,                                  // B: Mentor_ID (or Mentor_Email)
+      parameters.mentorName,                     // C: Mentor_Name
+      new Date(parameters.date + 'T00:00:00'),   // D: Date (start date)
+      endDate,                                   // E: End_Date (null for same-day, next day for midnight-spanning)
+      parameters.start,                          // F: Start_Time
+      parameters.end,                            // G: End_Time
+      'OPEN',                                    // H: Status
+      '',                                        // I: Booked_By
+      '',                                        // J: Student_ID
+      '',                                        // K: Student_Email
+      '',                                        // L: Meeting_Link
+      'PENDING',                                 // M: Feedback_Status_Mentor
+      'PENDING',                                 // N: Feedback_Status_Student
+      parameters.topic || '',                    // O: Interview_Topic
+      parameters.notes || '',                    // P: Notes
+      now.toISOString(),                         // Q: Timestamp_Created
+      ''                                         // R: Timestamp_Booked
     ];
 
     slotsSheet.appendRow(slotRow);
 
+    // Prepare response data
+    const responseData = {
+      slot_id: slotId,
+      mentor_id: mentorId,
+      mentor_name: parameters.mentorName,
+      mentor_email: parameters.mentorEmail,
+      date: parameters.date,
+      start_time: parameters.start,
+      end_time: parameters.end,
+      topic: parameters.topic || '',
+      notes: parameters.notes || '',
+      status: 'OPEN',
+      created_at: now.toISOString(),
+    };
+
+    // Include end_date in response if slot spans midnight or has explicit end date
+    if (endDate) {
+      // Format as YYYY-MM-DD string for API response
+      const formattedEndDate = typeof endDate === 'string' ? endDate : Utilities.formatDate(endDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      responseData.end_date = formattedEndDate;
+      console.log('Including end_date in response:', formattedEndDate);
+    } else {
+      console.log('Not including end_date in response (same-day slot)');
+    }
+
+    console.log('Final response data:', responseData);
+
     return {
       success: true,
-      data: {
-        slot_id: slotId,
-        mentor_id: mentorId,
-        mentor_name: parameters.mentorName,
-        mentor_email: parameters.mentorEmail,
-        date: parameters.date,
-        start_time: parameters.start,
-        end_time: parameters.end,
-        topic: parameters.topic || '',
-        notes: parameters.notes || '',
-        status: 'OPEN',
-        created_at: now.toISOString(),
-      },
+      data: responseData,
     };
   } catch (error) {
     return { success: false, error: error.toString() };
@@ -802,27 +987,65 @@ function getStudentBookings(studentId) {
       .filter((row) => row[SLOT_COLS.STUDENT_ID] === studentId && row[SLOT_COLS.STATUS] === 'BOOKED')
       .map((row) => {
         let slotDate = row[SLOT_COLS.DATE];
+        let endDate = row[SLOT_COLS.END_DATE];
+        
         if (typeof slotDate === 'string') {
           slotDate = new Date(slotDate);
         } else if (typeof slotDate === 'number') {
           slotDate = new Date((slotDate - 25569) * 86400 * 1000);
         }
-        return ({
-        slot_id: row[SLOT_COLS.SLOT_ID],
-        mentor_id: row[SLOT_COLS.MENTOR_ID],
-        mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
-        date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-        start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
-        end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
-        student_id: row[SLOT_COLS.STUDENT_ID],
-        student_email: row[SLOT_COLS.STUDENT_EMAIL],
-        meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
-        feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
-        feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
-        topic: row[SLOT_COLS.INTERVIEW_TOPIC] || '',
-        notes: row[SLOT_COLS.NOTES] || '',
-        timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
-      });
+        
+        // Handle optional end date
+        let endDateStr = '';
+        if (endDate && endDate !== '') {
+          if (typeof endDate === 'string') {
+            endDateStr = endDate;
+          } else if (typeof endDate === 'number') {
+            const endDateObj = new Date((endDate - 25569) * 86400 * 1000);
+            endDateStr = Utilities.formatDate(endDateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          }
+        } else {
+          // Auto-detect midnight-spanning slots that weren't stored with end_date
+          const startTime = row[SLOT_COLS.START_TIME];
+          const endTime = row[SLOT_COLS.END_TIME];
+          if (startTime && endTime) {
+            const [startHours, startMinutes] = String(startTime).split(':').map(Number);
+            const [endHours, endMinutes] = String(endTime).split(':').map(Number);
+            const startTotal = startHours * 60 + startMinutes;
+            const endTotal = endHours * 60 + endMinutes;
+            const spansMidnight = endTotal < startTotal;
+            
+            if (spansMidnight) {
+              const nextDay = new Date(slotDate);
+              nextDay.setDate(slotDate.getDate() + 1);
+              endDateStr = Utilities.formatDate(nextDay, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            }
+          }
+        }
+        
+        const slotObj = {
+          slot_id: row[SLOT_COLS.SLOT_ID],
+          mentor_id: row[SLOT_COLS.MENTOR_ID],
+          mentor_name: row[SLOT_COLS.MENTOR_NAME] || '',
+          date: Utilities.formatDate(slotDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+          start_time: formatTimeValue(row[SLOT_COLS.START_TIME]),
+          end_time: formatTimeValue(row[SLOT_COLS.END_TIME]),
+          student_id: row[SLOT_COLS.STUDENT_ID],
+          student_email: row[SLOT_COLS.STUDENT_EMAIL],
+          meeting_link: row[SLOT_COLS.MEETING_LINK] || '',
+          feedback_status_mentor: row[SLOT_COLS.FEEDBACK_STATUS_MENTOR] || 'PENDING',
+          feedback_status_student: row[SLOT_COLS.FEEDBACK_STATUS_STUDENT] || 'PENDING',
+          topic: row[SLOT_COLS.INTERVIEW_TOPIC] || '',
+          notes: row[SLOT_COLS.NOTES] || '',
+          timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED] || '',
+        };
+        
+        // Add end_date only if it's different from start date
+        if (endDateStr && endDateStr !== slotObj.date) {
+          slotObj.end_date = endDateStr;
+        }
+        
+        return slotObj;
       });
 
     return { success: true, data: bookings };
@@ -945,8 +1168,26 @@ function generateICSFile(startTime, endTime, mentorName, studentName, meetLink, 
 function sendBookingConfirmation(studentEmail, mentorEmail, bookingData) {
   const subject = 'Interview Session Confirmed - OpenGrad';
   
-  // Format dates - extract date components to avoid timezone issues
-  const dateStr = Utilities.formatDate(new Date(bookingData.date + 'T00:00:00'), Session.getScriptTimeZone(), 'EEEE, MMMM d, yyyy');
+  // Format dates - handle both same-day and multi-day slots
+  let dateStr = '';
+  if (bookingData.startTime && bookingData.endTime) {
+    // Check if it's a multi-day slot
+    const startDate = new Date(bookingData.startTime);
+    const endDate = new Date(bookingData.endTime);
+    const sameDay = startDate.toDateString() === endDate.toDateString();
+    
+    if (sameDay) {
+      dateStr = Utilities.formatDate(startDate, Session.getScriptTimeZone(), 'EEEE, MMMM d, yyyy');
+    } else {
+      // Multi-day slot
+      const startDateStr = Utilities.formatDate(startDate, Session.getScriptTimeZone(), 'MMMM d');
+      const endDateStr = Utilities.formatDate(endDate, Session.getScriptTimeZone(), 'MMMM d, yyyy');
+      dateStr = `${startDateStr} - ${endDateStr}`;
+    }
+  } else {
+    dateStr = Utilities.formatDate(new Date(bookingData.date + 'T00:00:00'), Session.getScriptTimeZone(), 'EEEE, MMMM d, yyyy');
+  }
+  
   const startTimeStr = Utilities.formatDate(bookingData.startTime, Session.getScriptTimeZone(), 'h:mm a');
   const endTimeStr = Utilities.formatDate(bookingData.endTime, Session.getScriptTimeZone(), 'h:mm a');
   
@@ -1183,11 +1424,42 @@ function getAllBookings() {
       // Only include BOOKED slots as bookings
       if (status === 'BOOKED') {
         let slotDate = row[SLOT_COLS.DATE];
+        let endDate = row[SLOT_COLS.END_DATE];
+        
         if (typeof slotDate === 'string') {
           slotDate = new Date(slotDate);
         } else if (typeof slotDate === 'number') {
           slotDate = new Date((slotDate - 25569) * 86400 * 1000);
         }
+        
+        // Handle optional end date
+        let endDateStr = '';
+        if (endDate && endDate !== '') {
+          if (typeof endDate === 'string') {
+            endDateStr = endDate;
+          } else if (typeof endDate === 'number') {
+            const endDateObj = new Date((endDate - 25569) * 86400 * 1000);
+            endDateStr = Utilities.formatDate(endDateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          }
+        } else {
+          // Auto-detect midnight-spanning slots that weren't stored with end_date
+          const startTime = row[SLOT_COLS.START_TIME];
+          const endTime = row[SLOT_COLS.END_TIME];
+          if (startTime && endTime) {
+            const [startHours, startMinutes] = String(startTime).split(':').map(Number);
+            const [endHours, endMinutes] = String(endTime).split(':').map(Number);
+            const startTotal = startHours * 60 + startMinutes;
+            const endTotal = endHours * 60 + endMinutes;
+            const spansMidnight = endTotal < startTotal;
+            
+            if (spansMidnight) {
+              const nextDay = new Date(slotDate);
+              nextDay.setDate(slotDate.getDate() + 1);
+              endDateStr = Utilities.formatDate(nextDay, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            }
+          }
+        }
+        
         const booking = {
           booking_id: row[SLOT_COLS.SLOT_ID], // Use slot_id as booking_id
           slot_id: row[SLOT_COLS.SLOT_ID],
@@ -1206,6 +1478,12 @@ function getAllBookings() {
           timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED],
           timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
         };
+        
+        // Add end_date only if it's different from start date
+        if (endDateStr && endDateStr !== booking.date) {
+          booking.end_date = endDateStr;
+        }
+        
         bookings.push(booking);
       }
     }
@@ -1236,11 +1514,42 @@ function getAllSlots() {
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
       let slotDate = row[SLOT_COLS.DATE];
+      let endDate = row[SLOT_COLS.END_DATE];
+      
       if (typeof slotDate === 'string') {
         slotDate = new Date(slotDate);
       } else if (typeof slotDate === 'number') {
         slotDate = new Date((slotDate - 25569) * 86400 * 1000);
       }
+      
+      // Handle optional end date
+      let endDateStr = '';
+      if (endDate && endDate !== '') {
+        if (typeof endDate === 'string') {
+          endDateStr = endDate;
+        } else if (typeof endDate === 'number') {
+          const endDateObj = new Date((endDate - 25569) * 86400 * 1000);
+          endDateStr = Utilities.formatDate(endDateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        }
+      } else {
+        // Auto-detect midnight-spanning slots that weren't stored with end_date
+        const startTime = row[SLOT_COLS.START_TIME];
+        const endTime = row[SLOT_COLS.END_TIME];
+        if (startTime && endTime) {
+          const [startHours, startMinutes] = String(startTime).split(':').map(Number);
+          const [endHours, endMinutes] = String(endTime).split(':').map(Number);
+          const startTotal = startHours * 60 + startMinutes;
+          const endTotal = endHours * 60 + endMinutes;
+          const spansMidnight = endTotal < startTotal;
+          
+          if (spansMidnight) {
+            const nextDay = new Date(slotDate);
+            nextDay.setDate(slotDate.getDate() + 1);
+            endDateStr = Utilities.formatDate(nextDay, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          }
+        }
+      }
+      
       const slot = {
         slot_id: row[SLOT_COLS.SLOT_ID],
         mentor_id: row[SLOT_COLS.MENTOR_ID],
@@ -1260,6 +1569,12 @@ function getAllSlots() {
         timestamp_created: row[SLOT_COLS.TIMESTAMP_CREATED],
         timestamp_booked: row[SLOT_COLS.TIMESTAMP_BOOKED],
       };
+      
+      // Add end_date only if it's different from start date
+      if (endDateStr && endDateStr !== slot.date) {
+        slot.end_date = endDateStr;
+      }
+      
       slots.push(slot);
     }
 
@@ -1467,6 +1782,10 @@ function processFeedbackQueue() {
         // Feedback form links with pre-filled slot ID
         const mentorFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSdQgC0xhB1UYU21odRYPeVcEyn7vu6hpS8xi-IN-gHguohdVQ/viewform?usp=pp_url&entry.1959723348=' + encodeURIComponent(job.slotId);
         const studentFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSd7wWTlkPJt1jS2QeL8EhoEKx7wV6Nywp6cTDhDBuws9BNGWA/viewform?usp=pp_url&entry.955316583=' + encodeURIComponent(job.slotId);
+
+        // DEV TEST
+        //const mentorFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSeu2i6W5XgFURonGkeLHZImNDorhtATIdZuAwLFsjeiEOgxGA/viewform?usp=pp_url&entry.210157484=' + encodeURIComponent(job.slotId);
+        //const studentFeedbackLink = 'https://docs.google.com/forms/d/e/1FAIpQLSfaLGW2d3a2gBC98YQrFqvWWj6q4229w-LboPbqf4Oires5ZQ/viewform?usp=pp_url&entry.686317709=' + encodeURIComponent(job.slotId);
 
         // Skip if already sent
         if (job.sent === true) {

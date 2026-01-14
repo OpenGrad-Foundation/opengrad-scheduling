@@ -38,7 +38,8 @@ export interface Slot {
   slot_id: string;
   mentor_id: string;
   mentor_name?: string;
-  date: string; // Date string (YYYY-MM-DD)
+  date: string; // Start date (YYYY-MM-DD)
+  end_date?: string; // Optional end date for slots spanning midnight (YYYY-MM-DD)
   start_time: string; // Time string (HH:MM or HH:MM AM/PM)
   end_time: string; // Time string (HH:MM or HH:MM AM/PM)
   status: 'OPEN' | 'BOOKED' | 'CANCELLED';
@@ -89,7 +90,8 @@ export interface BookingResponse {
 export interface SlotCreationRequest {
   mentorEmail: string;
   mentorName: string;
-  date: string; // Date string (YYYY-MM-DD)
+  date: string; // Start date string (YYYY-MM-DD)
+  end_date?: string; // Optional end date for multi-day slots (YYYY-MM-DD). If not provided, will be auto-detected based on times
   start: string; // Time string (HH:MM)
   end: string; // Time string (HH:MM)
   topic?: string;

@@ -19,18 +19,26 @@ export default function SlotCard({
   isLoading = false,
   mentorName,
 }: SlotCardProps) {
+  // DEBUG: Log slot data
+  console.log('SlotCard rendering slot:', slot.slot_id, 'end_date:', slot.end_date);
+  
   // Parse date and time strings
   const slotDate = slot.date ? new Date(slot.date) : new Date();
+  const endDate = slot.end_date ? new Date(slot.end_date) : slotDate;
   const [startHours, startMinutes] = slot.start_time.split(':').map(Number);
   const [endHours, endMinutes] = slot.end_time.split(':').map(Number);
   
   const startTime = new Date(slotDate);
   startTime.setHours(startHours, startMinutes, 0, 0);
   
-  const endTime = new Date(slotDate);
+  const endTime = new Date(endDate);
   endTime.setHours(endHours, endMinutes, 0, 0);
   
   const isPast = endTime < new Date();
+  const isMultiDay = slot.end_date && slot.end_date !== slot.date;
+  
+  // DEBUG: Log multi-day detection
+  console.log('SlotCard:', slot.slot_id, 'isMultiDay:', isMultiDay, 'end_date:', slot.end_date, 'date:', slot.date);
   
   // Calculate duration
   const durationMins = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
@@ -52,7 +60,13 @@ export default function SlotCard({
           <div className="flex items-center gap-2 mb-2">
             <Calendar className="h-4 w-4 text-gray-500" />
             <span className="font-semibold text-gray-900">
-              {format(startTime, 'MMM d, yyyy')}
+              {(() => {
+                const dateText = isMultiDay
+                  ? `${format(startTime, 'MMM d')} - ${format(endTime, 'MMM d, yyyy')}`
+                  : format(startTime, 'MMM d, yyyy');
+                console.log('SlotCard date display:', slot.slot_id, 'isMultiDay:', isMultiDay, 'dateText:', dateText);
+                return dateText;
+              })()}
             </span>
           </div>
           <div className="flex items-center gap-2 mb-2">
