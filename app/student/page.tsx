@@ -169,18 +169,32 @@ export default function StudentDashboard() {
     );
   }
 
-  const openSlots = slots.filter(
-    (slot) => slot.status === 'OPEN' && new Date(`${slot.date}T${slot.end_time}`) > new Date()
-  );
+  const openSlots = slots.filter((slot) => {
+    if (slot.status !== 'OPEN') return false;
+    
+    // For midnight-spanning slots, use end_date + end_time
+    // For same-day slots, use date + end_time
+    const endDate = slot.end_date || slot.date;
+    const endDateTime = new Date(`${endDate}T${slot.end_time}`);
+    return endDateTime > new Date();
+  });
 
   // Separate upcoming and past bookings
   const now = new Date();
-  const upcomingBookings = bookings.filter(
-    (slot) => new Date(`${slot.date}T${slot.end_time}`) > now
-  );
-  const pastBookings = bookings.filter(
-    (slot) => new Date(`${slot.date}T${slot.end_time}`) <= now
-  );
+  const upcomingBookings = bookings.filter((slot) => {
+    // For midnight-spanning slots, use end_date + end_time
+    // For same-day slots, use date + end_time
+    const endDate = slot.end_date || slot.date;
+    const endDateTime = new Date(`${endDate}T${slot.end_time}`);
+    return endDateTime > now;
+  });
+  const pastBookings = bookings.filter((slot) => {
+    // For midnight-spanning slots, use end_date + end_time
+    // For same-day slots, use date + end_time
+    const endDate = slot.end_date || slot.date;
+    const endDateTime = new Date(`${endDate}T${slot.end_time}`);
+    return endDateTime <= now;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">

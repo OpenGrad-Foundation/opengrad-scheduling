@@ -97,12 +97,15 @@ export default function MentorDashboard() {
     setCreating(true);
 
     try {
-      // Calculate end time from start time + duration
+      // Calculate end time from start time + duration (handle midnight crossing)
       const [startHours, startMinutes] = formData.startTime.split(':').map(Number);
       const durationMinutes = parseInt(formData.duration);
       const totalMinutes = startHours * 60 + startMinutes + durationMinutes;
-      const endHours = Math.floor(totalMinutes / 60);
-      const endMinutes = totalMinutes % 60;
+      
+      // Handle midnight crossing: if total minutes >= 1440 (24 hours), wrap around
+      const normalizedMinutes = totalMinutes % 1440; // 1440 minutes = 24 hours
+      const endHours = Math.floor(normalizedMinutes / 60);
+      const endMinutes = normalizedMinutes % 60;
       const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
 
       const slotData: SlotCreationRequest = {
@@ -148,10 +151,25 @@ export default function MentorDashboard() {
   };
 
 
-  const upcomingSlots = slots.filter(
-    (slot) => slot.status !== 'CANCELLED' && new Date(`${slot.date}T${slot.end_time}`) > new Date()
-  );
-  const pastSlots = slots.filter((slot) => new Date(`${slot.date}T${slot.end_time}`) <= new Date());
+  const upcomingSlots = slots.filter((slot) => {
+    if (slot.status === 'CANCELLED') return false;
+
+    // For midnight-spanning slots, use end_date + end_time
+    // For same-day slots, use date + end_time
+    const endDate = slot.end_date || slot.date;
+    const endDateTime = new Date(`${endDate}T${slot.end_time}`);
+
+    return endDateTime > new Date();
+  });
+
+  const pastSlots = slots.filter((slot) => {
+    // For midnight-spanning slots, use end_date + end_time
+    // For same-day slots, use date + end_time
+    const endDate = slot.end_date || slot.date;
+    const endDateTime = new Date(`${endDate}T${slot.end_time}`);
+
+    return endDateTime <= new Date();
+  });
 
   console.log('All slots:', slots);
   console.log('Upcoming slots:', upcomingSlots);

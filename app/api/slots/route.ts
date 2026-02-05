@@ -129,18 +129,39 @@ export const POST = auth(async (request) => {
       );
     }
 
-    // Validate end time is after start time
+    // Parse and validate time values
     const [startHours, startMinutes] = body.start.split(':').map(Number);
     const [endHours, endMinutes] = body.end.split(':').map(Number);
-    const startTotal = startHours * 60 + startMinutes;
-    const endTotal = endHours * 60 + endMinutes;
     
-    if (endTotal <= startTotal) {
+    // Validate hours (0-23) and minutes (0-59)
+    if (startHours < 0 || startHours > 23 || startMinutes < 0 || startMinutes > 59) {
       return NextResponse.json(
-        { error: 'End time must be after start time' },
+        { error: `Invalid start time: ${body.start}. Hours must be 00-23, minutes must be 00-59` },
         { status: 400 }
       );
     }
+    
+    if (endHours < 0 || endHours > 23 || endMinutes < 0 || endMinutes > 59) {
+      return NextResponse.json(
+        { error: `Invalid end time: ${body.end}. Hours must be 00-23, minutes must be 00-59` },
+        { status: 400 }
+      );
+    }
+
+    const startTotal = startHours * 60 + startMinutes;
+    const endTotal = endHours * 60 + endMinutes;
+    const spansMidnight = endTotal < startTotal;
+    
+    // Allow both same-day and midnight-spanning slots
+    if (!spansMidnight && endTotal <= startTotal) {
+      return NextResponse.json(
+        { error: 'End time must be after start time (same day) or span midnight (e.g., 23:00 to 01:00)' },
+        { status: 400 }
+      );
+    }
+    
+    // If end_date not provided and slot spans midnight, it will be auto-detected by Apps Script
+    // (no need to calculate it here - let backend handle it consistently)
 
     console.log('[slots POST] Creating slot with data:', {
       mentorEmail: body.mentorEmail,
